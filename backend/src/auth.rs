@@ -19,15 +19,18 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let username = headers
-        .get(REMOTE_USER_HEADER)
-        .and_then(|v| v.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    // Try to get username from Remote-User header, or use dev default
+    let username = if let Some(header_value) = headers.get(REMOTE_USER_HEADER) {
+        header_value.to_str().unwrap_or("dev-user").to_string()
+    } else {
+        // For development: use environment variable or default
+        std::env::var("DEV_DEFAULT_USER").unwrap_or_else(|_| "dev-user".to_string())
+    };
 
     // Get or create user
     let user = state
         .repository
-        .get_or_create_user(username)
+        .get_or_create_user(&username)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

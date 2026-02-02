@@ -1,0 +1,50 @@
+# Caddyfile for local LLMPROXY testing
+# This configuration adds the Remote-User header for authentication
+
+# Main configuration
+{
+	# Disable automatic HTTPS for local testing
+	auto_https off
+	
+	# Admin API endpoint (optional)
+	admin localhost:2020
+}
+
+# Local testing server
+:8081 {
+	# Set Remote-User header for all requests
+	# Change "dev-user" to your desired username
+	header {
+		Remote-User "dev-user"
+	}
+	
+	# Serve frontend static files
+	root * ./frontend/dist
+	file_server
+	
+	# Try files, fallback to index.html for SPA routing
+	try_files {path} /index.html
+	
+	# Proxy API requests to backend
+	reverse_proxy /api/* localhost:8080 {
+		# Forward Remote-User header
+		header_up Remote-User {header.Remote-User}
+	}
+	
+	# Proxy LLM requests to backend
+	reverse_proxy /proxy/* localhost:8080 {
+		# Increase timeouts for LLM requests
+		transport http {
+			read_timeout 300s
+			write_timeout 300s
+		}
+	}
+	
+	# Logging
+	log {
+		output file llmproxy.log
+		format json
+		level INFO
+	}
+}
+

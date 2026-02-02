@@ -4,6 +4,6 @@ target = "index.html"
 [watch]
 ignore = ["./dist"]
 
-[serve]
-address = "127.0.0.1"
-port = 8081
+# Proxy API requests to backend
+[[serve.proxy]]
+backend = "http://127.0.0.1:8080"

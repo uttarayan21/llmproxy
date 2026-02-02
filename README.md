@@ -69,7 +69,32 @@ trunk build --release
 
 ### Production Deployment
 
-For production, you'll need a reverse proxy (like nginx or Caddy) to:
+#### NixOS (Recommended)
+
+LLMPROXY includes a complete NixOS module for easy deployment:
+
+```nix
+# In your configuration.nix
+{
+  imports = [ ./path/to/llmproxy/nixos-module.nix ];
+
+  services.llmproxy = {
+    enable = true;
+    nginx = {
+      enable = true;
+      domain = "llmproxy.example.com";
+      authMethod = "basic";
+      basicAuthFile = "/etc/nginx/.htpasswd";
+    };
+  };
+}
+```
+
+See [NIXOS_DEPLOYMENT.md](./NIXOS_DEPLOYMENT.md) for complete documentation.
+
+#### Manual Deployment
+
+For other systems, you'll need a reverse proxy (like nginx or Caddy) to:
 1. Serve the frontend static files
 2. Proxy `/api/*` and `/proxy/*` requests to the backend
 3. Add the `Remote-User` header for authentication
@@ -141,7 +166,15 @@ Navigate to "Request Logs" in the dashboard to see all logged requests, includin
 
 ## API Endpoints
 
-### Management API (requires Remote-User header)
+Complete API documentation is available in OpenAPI 3.0 format:
+
+- **Full Documentation**: See [API_DOCUMENTATION.md](./API_DOCUMENTATION.md)
+- **OpenAPI Spec**: [openapi.yaml](./openapi.yaml) or [openapi.json](./openapi.json)
+- **Interactive Docs**: Import the spec into [Swagger Editor](https://editor.swagger.io/) or [Redoc](https://redocly.com/redoc/)
+
+### Quick Reference
+
+**Management API** (requires Remote-User header):
 
 - `GET /api/user` - Get current authenticated user
 - `GET /api/platforms` - List all LLM platforms
@@ -153,7 +186,7 @@ Navigate to "Request Logs" in the dashboard to see all logged requests, includin
 - `GET /api/logs?limit=100` - List request logs
 - `GET /api/logs/:id` - Get specific log details
 
-### Proxy Endpoint (requires Authorization: Bearer header with proxy API key)
+**Proxy Endpoint** (requires Authorization: Bearer header with proxy API key):
 
 - `ANY /proxy/:platform_id/*path` - Proxy requests to LLM platform
 

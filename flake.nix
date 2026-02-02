@@ -145,10 +145,16 @@
                   cargo-nextest
                   cargo-deny
                   trunk
+                  sqlite
+                  caddy
+                  lsof
                 ]
                 ++ (lib.optionals pkgs.stdenv.isDarwin [
                   apple-sdk_26
                 ]);
+              shellHook = ''
+                echo "Welcome to the development shell for ${name}!"
+              '';
             });
         };
       }

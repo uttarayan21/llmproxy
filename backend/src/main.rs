@@ -1,25 +1,12 @@
-mod api_key;
-mod auth;
-mod db;
-mod handlers;
-mod models;
-mod proxy;
-mod repository;
-
 use axum::{
     middleware,
     routing::{delete, get, post},
     Router,
 };
-use repository::Repository;
+use backend::{db, handlers, auth, proxy, repository::Repository, AppState};
 use std::env;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-#[derive(Clone)]
-pub struct AppState {
-    pub repository: Repository,
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

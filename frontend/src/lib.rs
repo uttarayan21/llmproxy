@@ -1,6 +1,7 @@
 use yew::prelude::*;
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 mod components;
 use components::{
@@ -95,6 +96,7 @@ fn app() -> Html {
     }
 }
 
-fn main() {
+#[wasm_bindgen(start)]
+pub fn run_app() {
     yew::Renderer::<App>::new().render();
 }
