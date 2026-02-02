@@ -30,6 +30,14 @@ pub struct CreateLlmPlatformRequest {
     pub platform_type: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateLlmPlatformRequest {
+    pub name: String,
+    pub base_url: String,
+    pub api_key: Option<String>,
+    pub platform_type: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ProxyApiKey {
     pub id: i64,

@@ -1,5 +1,7 @@
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use web_sys::window;
 use yew::prelude::*;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
@@ -32,6 +34,66 @@ pub struct LlmPlatform {
     pub platform_type: String,
     pub created_at: String,
     pub updated_at: String,
+}
+
+// Helper function to generate curl command for incoming request
+fn generate_incoming_curl(log: &RequestLog, proxy_url: &str) -> String {
+    let mut curl = format!("curl -X {} '{}{}'", log.method, proxy_url, log.path);
+    
+    // Add headers
+    if let Ok(headers) = serde_json::from_str::<HashMap<String, String>>(&log.request_headers) {
+        for (key, value) in headers.iter() {
+            // Skip host header as curl will add it
+            if key.to_lowercase() != "host" {
+                curl.push_str(&format!(" \\\n  -H '{}: {}'", key, value));
+            }
+        }
+    }
+    
+    // Add body
+    if let Some(body) = &log.request_body {
+        curl.push_str(&format!(" \\\n  -d '{}'", body.replace('\'', "'\\''")));
+    }
+    
+    curl
+}
+
+// Helper function to generate curl command for outgoing request
+fn generate_outgoing_curl(log: &RequestLog) -> Option<String> {
+    let url = log.outgoing_url.as_ref()?;
+    let mut curl = format!("curl -X {} '{}'", log.method, url);
+    
+    // Add headers
+    if let Some(headers_str) = &log.outgoing_headers
+        && let Ok(headers) = serde_json::from_str::<HashMap<String, String>>(headers_str) {
+            for (key, value) in headers.iter() {
+                curl.push_str(&format!(" \\\n  -H '{}: {}'", key, value));
+            }
+        }
+    
+    // Add body
+    if let Some(body) = &log.outgoing_body {
+        curl.push_str(&format!(" \\\n  -d '{}'", body.replace('\'', "'\\''")));
+    }
+    
+    Some(curl)
+}
+
+// Helper function to copy text to clipboard
+fn copy_to_clipboard(text: &str) {
+    if let Some(window) = window() {
+        let clipboard = window.navigator().clipboard();
+        let _ = clipboard.write_text(text);
+    }
+}
+
+// Helper function to prettify JSON if valid, otherwise return original
+fn prettify_json(text: &str) -> String {
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(text) {
+        serde_json::to_string_pretty(&value).unwrap_or_else(|_| text.to_string())
+    } else {
+        text.to_string()
+    }
 }
 
 #[function_component(RequestLogs)]
@@ -138,6 +200,29 @@ pub fn request_logs() -> Html {
                                         .find(|p| p.id == log.llm_platform_id)
                                         .cloned();
                                     
+                                    // Prepare curl commands outside html! macro
+                                    let proxy_url = window()
+                                        .and_then(|w| w.location().origin().ok())
+                                        .unwrap_or_else(|| "http://localhost:8080".to_string());
+                                    let incoming_curl = generate_incoming_curl(log, &format!("{}/proxy", proxy_url));
+                                    let outgoing_curl = generate_outgoing_curl(log);
+                                    
+                                    let on_copy_incoming = {
+                                        let curl = incoming_curl.clone();
+                                        Callback::from(move |_| {
+                                            copy_to_clipboard(&curl);
+                                        })
+                                    };
+                                    
+                                    let on_copy_outgoing = {
+                                        let curl = outgoing_curl.clone();
+                                        Callback::from(move |_| {
+                                            if let Some(c) = &curl {
+                                                copy_to_clipboard(c);
+                                            }
+                                        })
+                                    };
+                                    
                                     html! {
                                         <div class="log-detail">
                                             <div class="detail-header">
@@ -178,7 +263,12 @@ pub fn request_logs() -> Html {
                                             </div>
 
                                             <div class="detail-section">
-                                                <h4>{ "Incoming Request (from user)" }</h4>
+                                                <div class="section-header-with-button">
+                                                    <h4>{ "Incoming Request (from user)" }</h4>
+                                                    <button class="btn-copy" onclick={on_copy_incoming}>
+                                                        { "Copy as curl" }
+                                                    </button>
+                                                </div>
                                                 <div class="detail-item">
                                                     <strong>{ "Method:" }</strong>
                                                     <span>{ &log.method }</span>
@@ -189,10 +279,11 @@ pub fn request_logs() -> Html {
                                                 </div>
                                                 {
                                                     if let Some(body) = &log.request_body {
+                                                        let pretty_body = prettify_json(body);
                                                         html! {
                                                             <div class="detail-item">
                                                                 <strong>{ "Body:" }</strong>
-                                                                <pre>{ body }</pre>
+                                                                <pre class="json-body">{ pretty_body }</pre>
                                                             </div>
                                                         }
                                                     } else {
@@ -203,7 +294,20 @@ pub fn request_logs() -> Html {
 
                                             // Outgoing request section
                                             <div class="detail-section">
-                                                <h4>{ "Outgoing Request (to LLM platform)" }</h4>
+                                                <div class="section-header-with-button">
+                                                    <h4>{ "Outgoing Request (to LLM platform)" }</h4>
+                                                    {
+                                                        if outgoing_curl.is_some() {
+                                                            html! {
+                                                                <button class="btn-copy" onclick={on_copy_outgoing}>
+                                                                    { "Copy as curl" }
+                                                                </button>
+                                                            }
+                                                        } else {
+                                                            html! {}
+                                                        }
+                                                    }
+                                                </div>
                                                 {
                                                     if let Some(url) = &log.outgoing_url {
                                                         html! {
@@ -230,10 +334,11 @@ pub fn request_logs() -> Html {
                                                 }
                                                 {
                                                     if let Some(body) = &log.outgoing_body {
+                                                        let pretty_body = prettify_json(body);
                                                         html! {
                                                             <div class="detail-item">
                                                                 <strong>{ "Body:" }</strong>
-                                                                <pre>{ body }</pre>
+                                                                <pre class="json-body">{ pretty_body }</pre>
                                                             </div>
                                                         }
                                                     } else {
@@ -258,10 +363,11 @@ pub fn request_logs() -> Html {
                                                 }
                                                 {
                                                     if let Some(body) = &log.response_body {
+                                                        let pretty_body = prettify_json(body);
                                                         html! {
                                                             <div class="detail-item">
                                                                 <strong>{ "Body:" }</strong>
-                                                                <pre>{ body }</pre>
+                                                                <pre class="json-body">{ pretty_body }</pre>
                                                             </div>
                                                         }
                                                     } else {

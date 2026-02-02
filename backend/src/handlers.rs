@@ -44,6 +44,29 @@ pub async fn get_llm_platforms(
     Ok(Json(platforms))
 }
 
+pub async fn update_llm_platform(
+    State(state): State<AppState>,
+    Extension(auth_user): Extension<AuthUser>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateLlmPlatformRequest>,
+) -> Result<Json<LlmPlatform>, AppError> {
+    let platform = state
+        .repository
+        .update_llm_platform(id, auth_user.user.id, req)
+        .await
+        .map_err(|e| {
+            AppError::internal_server_error(
+                "handlers::update_llm_platform",
+                &format!("Failed to update LLM platform: {}", e),
+            )
+        })?
+        .ok_or_else(|| {
+            AppError::not_found("handlers::update_llm_platform", "LLM platform")
+        })?;
+
+    Ok(Json(platform))
+}
+
 pub async fn delete_llm_platform(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,

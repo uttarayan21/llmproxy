@@ -3,7 +3,7 @@ use axum::{
     http::{StatusCode, Uri, header},
     middleware,
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 use backend::{AppState, auth, db, embedded::Assets, handlers, proxy, repository::Repository};
 use std::env;
@@ -39,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/user", get(handlers::get_current_user))
         .route("/api/platforms", post(handlers::create_llm_platform))
         .route("/api/platforms", get(handlers::get_llm_platforms))
+        .route("/api/platforms/:id", put(handlers::update_llm_platform))
         .route("/api/platforms/:id", delete(handlers::delete_llm_platform))
         .route("/api/keys", post(handlers::create_proxy_api_key))
         .route("/api/keys", get(handlers::get_proxy_api_keys))

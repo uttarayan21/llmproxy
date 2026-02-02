@@ -22,11 +22,20 @@ pub struct CreatePlatformRequest {
     pub platform_type: String,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct UpdatePlatformRequest {
+    pub name: String,
+    pub base_url: String,
+    pub api_key: Option<String>,
+    pub platform_type: String,
+}
+
 #[function_component(Platforms)]
 pub fn platforms() -> Html {
     let platforms = use_state(Vec::<LlmPlatform>::new);
     let loading = use_state(|| true);
     let show_form = use_state(|| false);
+    let editing_id = use_state(|| None::<i64>);
     let refresh = use_state(|| 0);
 
     let name_ref = use_node_ref();
@@ -52,9 +61,69 @@ pub fn platforms() -> Html {
 
     let on_toggle_form = {
         let show_form = show_form.clone();
+        let editing_id = editing_id.clone();
+        let name_ref = name_ref.clone();
+        let base_url_ref = base_url_ref.clone();
+        let api_key_ref = api_key_ref.clone();
+        let platform_type_ref = platform_type_ref.clone();
+        
         Callback::from(move |_| {
-            show_form.set(!*show_form);
+            let new_state = !*show_form;
+            show_form.set(new_state);
+            editing_id.set(None);
+            
+            // Clear form fields when closing or opening
+            if let Some(input) = name_ref.cast::<HtmlInputElement>() {
+                input.set_value("");
+            }
+            if let Some(input) = base_url_ref.cast::<HtmlInputElement>() {
+                input.set_value("");
+            }
+            if let Some(input) = api_key_ref.cast::<HtmlInputElement>() {
+                input.set_value("");
+            }
+            if let Some(input) = platform_type_ref.cast::<HtmlInputElement>() {
+                input.set_value("");
+            }
         })
+    };
+
+    let on_edit = {
+        let show_form = show_form.clone();
+        let editing_id = editing_id.clone();
+        let name_ref = name_ref.clone();
+        let base_url_ref = base_url_ref.clone();
+        let api_key_ref = api_key_ref.clone();
+        let platform_type_ref = platform_type_ref.clone();
+        
+        move |platform: LlmPlatform| {
+            let show_form = show_form.clone();
+            let editing_id = editing_id.clone();
+            let name_ref = name_ref.clone();
+            let base_url_ref = base_url_ref.clone();
+            let api_key_ref = api_key_ref.clone();
+            let platform_type_ref = platform_type_ref.clone();
+            
+            Callback::from(move |_| {
+                editing_id.set(Some(platform.id));
+                show_form.set(true);
+                
+                // Pre-fill form with existing values
+                if let Some(input) = name_ref.cast::<HtmlInputElement>() {
+                    input.set_value(&platform.name);
+                }
+                if let Some(input) = base_url_ref.cast::<HtmlInputElement>() {
+                    input.set_value(&platform.base_url);
+                }
+                if let Some(input) = platform_type_ref.cast::<HtmlInputElement>() {
+                    input.set_value(&platform.platform_type);
+                }
+                // Clear API key field (can't pre-fill since we don't have it)
+                if let Some(input) = api_key_ref.cast::<HtmlInputElement>() {
+                    input.set_value("");
+                }
+            })
+        }
     };
 
     let on_submit = {
@@ -63,6 +132,7 @@ pub fn platforms() -> Html {
         let api_key_ref = api_key_ref.clone();
         let platform_type_ref = platform_type_ref.clone();
         let show_form = show_form.clone();
+        let editing_id = editing_id.clone();
         let refresh = refresh.clone();
 
         Callback::from(move |e: SubmitEvent| {
@@ -76,24 +146,40 @@ pub fn platforms() -> Html {
                 .unwrap()
                 .value();
 
-            let request = CreatePlatformRequest {
-                name,
-                base_url,
-                api_key,
-                platform_type,
-            };
-
             let show_form = show_form.clone();
+            let editing_id_val = *editing_id;
             let refresh = refresh.clone();
 
             wasm_bindgen_futures::spawn_local(async move {
-                if Request::post("/api/platforms")
-                    .json(&request)
-                    .unwrap()
-                    .send()
-                    .await
-                    .is_ok()
-                {
+                let result = if let Some(id) = editing_id_val {
+                    // Update existing platform
+                    let request = UpdatePlatformRequest {
+                        name,
+                        base_url,
+                        api_key: if api_key.is_empty() { None } else { Some(api_key) },
+                        platform_type,
+                    };
+                    Request::put(&format!("/api/platforms/{}", id))
+                        .json(&request)
+                        .unwrap()
+                        .send()
+                        .await
+                } else {
+                    // Create new platform
+                    let request = CreatePlatformRequest {
+                        name,
+                        base_url,
+                        api_key,
+                        platform_type,
+                    };
+                    Request::post("/api/platforms")
+                        .json(&request)
+                        .unwrap()
+                        .send()
+                        .await
+                };
+
+                if result.is_ok() {
                     show_form.set(false);
                     refresh.set(*refresh + 1);
                 }
@@ -128,6 +214,7 @@ pub fn platforms() -> Html {
 
             {
                 if *show_form {
+                    let is_editing = editing_id.is_some();
                     html! {
                         <form class="platform-form" onsubmit={on_submit}>
                             <div class="form-group">
@@ -140,13 +227,20 @@ pub fn platforms() -> Html {
                             </div>
                             <div class="form-group">
                                 <label>{ "API Key:" }</label>
-                                <input type="password" ref={api_key_ref.clone()} required=true />
+                                <input 
+                                    type="password" 
+                                    ref={api_key_ref.clone()} 
+                                    placeholder={if is_editing { "Leave empty to keep current key" } else { "" }}
+                                    required={!is_editing} 
+                                />
                             </div>
                             <div class="form-group">
                                 <label>{ "Platform Type:" }</label>
                                 <input type="text" ref={platform_type_ref.clone()} placeholder="openai, ollama, custom" required=true />
                             </div>
-                            <button type="submit" class="btn-primary">{ "Create" }</button>
+                            <button type="submit" class="btn-primary">
+                                { if editing_id.is_some() { "Update" } else { "Create" } }
+                            </button>
                         </form>
                     }
                 } else {
@@ -165,6 +259,7 @@ pub fn platforms() -> Html {
                             {
                                 platforms.iter().map(|platform| {
                                     let on_delete_click = on_delete(platform.id);
+                                    let on_edit_click = on_edit(platform.clone());
                                     html! {
                                         <div class="platform-item">
                                             <div class="platform-info">
@@ -175,7 +270,10 @@ pub fn platforms() -> Html {
                                                     <div><strong>{ "Created:" }</strong> { &platform.created_at }</div>
                                                 </div>
                                             </div>
-                                            <button class="btn-danger" onclick={on_delete_click}>{ "Delete" }</button>
+                                            <div class="platform-actions">
+                                                <button class="btn-secondary" onclick={on_edit_click}>{ "Edit" }</button>
+                                                <button class="btn-danger" onclick={on_delete_click}>{ "Delete" }</button>
+                                            </div>
                                         </div>
                                     }
                                 }).collect::<Html>()

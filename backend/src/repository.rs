@@ -90,6 +90,56 @@ impl Repository {
         Ok(platform)
     }
 
+    pub async fn update_llm_platform(
+        &self,
+        id: i64,
+        user_id: i64,
+        req: UpdateLlmPlatformRequest,
+    ) -> Result<Option<LlmPlatform>> {
+        // Build query based on whether api_key is provided
+        let result = if let Some(api_key) = &req.api_key {
+            // Update including api_key
+            sqlx::query(
+                r#"UPDATE llm_platforms 
+                   SET name = ?, base_url = ?, api_key = ?, platform_type = ?, updated_at = CURRENT_TIMESTAMP
+                   WHERE id = ? AND user_id = ?"#,
+            )
+            .bind(&req.name)
+            .bind(&req.base_url)
+            .bind(api_key)
+            .bind(&req.platform_type)
+            .bind(id)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?
+        } else {
+            // Update without changing api_key
+            sqlx::query(
+                r#"UPDATE llm_platforms 
+                   SET name = ?, base_url = ?, platform_type = ?, updated_at = CURRENT_TIMESTAMP
+                   WHERE id = ? AND user_id = ?"#,
+            )
+            .bind(&req.name)
+            .bind(&req.base_url)
+            .bind(&req.platform_type)
+            .bind(id)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?
+        };
+
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+
+        let platform = sqlx::query_as::<_, LlmPlatform>("SELECT * FROM llm_platforms WHERE id = ?")
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(Some(platform))
+    }
+
     pub async fn delete_llm_platform(&self, id: i64, user_id: i64) -> Result<bool> {
         let result = sqlx::query("DELETE FROM llm_platforms WHERE id = ? AND user_id = ?")
             .bind(id)
