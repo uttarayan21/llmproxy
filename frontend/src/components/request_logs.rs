@@ -38,7 +38,14 @@ pub struct LlmPlatform {
 
 // Helper function to generate curl command for incoming request
 fn generate_incoming_curl(log: &RequestLog, proxy_url: &str) -> String {
-    let mut curl = format!("curl -X {} '{}{}'", log.method, proxy_url, log.path);
+    // Ensure the path starts with a slash
+    let path = if log.path.starts_with('/') {
+        log.path.clone()
+    } else {
+        format!("/{}", log.path)
+    };
+    
+    let mut curl = format!("curl -X {} '{}{}'", log.method, proxy_url, path);
     
     // Add headers
     if let Ok(headers) = serde_json::from_str::<HashMap<String, String>>(&log.request_headers) {

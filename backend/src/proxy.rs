@@ -1,11 +1,178 @@
 use crate::{AppState, api_key, error::AppError, models::CreateRequestLogRequest};
 use axum::{
+    body::Body,
     extract::{Path, State},
     http::{HeaderMap, Method, StatusCode},
     response::{IntoResponse, Response},
 };
+use futures_util::StreamExt;
 use reqwest;
 use std::time::Instant;
+
+// Context for logging requests
+struct LogContext {
+    state: AppState,
+    user_id: i64,
+    proxy_key_id: i64,
+    platform_id: i64,
+    method: Method,
+    path: String,
+    request_headers_map: std::collections::HashMap<String, String>,
+    request_body: String,
+    target_url: String,
+    outgoing_headers: String,
+    outgoing_body: Option<String>,
+    start: Instant,
+}
+
+// Handle non-streaming responses
+async fn handle_regular_response(
+    resp: reqwest::Response,
+    status: reqwest::StatusCode,
+    headers: reqwest::header::HeaderMap,
+    ctx: LogContext,
+) -> Result<Response, AppError> {
+    let duration_ms = ctx.start.elapsed().as_millis() as i64;
+
+    // Extract response details
+    let status_code = status.as_u16() as i32;
+    let headers_map: std::collections::HashMap<String, String> = headers
+        .iter()
+        .filter_map(|(k, v)| v.to_str().ok().map(|val| (k.to_string(), val.to_string())))
+        .collect();
+    let response_headers_json = serde_json::to_string(&headers_map).unwrap_or_default();
+    let response_body = resp.text().await.unwrap_or_default();
+
+    // Log request/response
+    let request_headers = serde_json::to_string(&ctx.request_headers_map).unwrap_or_default();
+    let log_req = CreateRequestLogRequest {
+        user_id: ctx.user_id,
+        proxy_api_key_id: ctx.proxy_key_id,
+        llm_platform_id: ctx.platform_id,
+        method: ctx.method.to_string(),
+        path: ctx.path.clone(),
+        request_headers,
+        request_body: if ctx.request_body.is_empty() {
+            None
+        } else {
+            Some(ctx.request_body)
+        },
+        outgoing_url: Some(ctx.target_url),
+        outgoing_headers: Some(ctx.outgoing_headers),
+        outgoing_body: ctx.outgoing_body,
+        response_status: Some(status_code),
+        response_headers: Some(response_headers_json),
+        response_body: Some(response_body.clone()),
+        duration_ms: Some(duration_ms),
+        error: None,
+    };
+
+    tokio::spawn(async move {
+        let _ = ctx.state.repository.create_request_log(log_req).await;
+    });
+
+    // Return response
+    let axum_status = StatusCode::from_u16(status_code as u16)
+        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    Ok((axum_status, response_body).into_response())
+}
+
+// Handle streaming responses (SSE)
+async fn handle_streaming_response(
+    resp: reqwest::Response,
+    status: reqwest::StatusCode,
+    headers: reqwest::header::HeaderMap,
+    ctx: LogContext,
+) -> Result<Response, AppError> {
+    let status_code = status.as_u16() as i32;
+    
+    // Extract response headers
+    let headers_map: std::collections::HashMap<String, String> = headers
+        .iter()
+        .filter_map(|(k, v)| v.to_str().ok().map(|val| (k.to_string(), val.to_string())))
+        .collect();
+    let response_headers_json = serde_json::to_string(&headers_map).unwrap_or_default();
+
+    // Create a stream that collects chunks for logging
+    let mut stream = resp.bytes_stream();
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<bytes::Bytes, std::io::Error>>(100);
+    
+    // Spawn a task to collect chunks and log after completion
+    tokio::spawn(async move {
+        let mut collected_chunks = Vec::new();
+        
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(chunk) => {
+                    collected_chunks.push(chunk.clone());
+                    // Send chunk downstream (ignore errors if receiver is dropped)
+                    let _ = tx.send(Ok(chunk)).await;
+                }
+                Err(e) => {
+                    // Send error downstream
+                    let _ = tx
+                        .send(Err(std::io::Error::other(e.to_string())))
+                        .await;
+                    break;
+                }
+            }
+        }
+
+        // After stream completes, log the request
+        let duration_ms = ctx.start.elapsed().as_millis() as i64;
+        let response_body = collected_chunks
+            .into_iter()
+            .map(|c| String::from_utf8_lossy(&c).to_string())
+            .collect::<Vec<_>>()
+            .join("");
+
+        let request_headers = serde_json::to_string(&ctx.request_headers_map).unwrap_or_default();
+        let log_req = CreateRequestLogRequest {
+            user_id: ctx.user_id,
+            proxy_api_key_id: ctx.proxy_key_id,
+            llm_platform_id: ctx.platform_id,
+            method: ctx.method.to_string(),
+            path: ctx.path,
+            request_headers,
+            request_body: if ctx.request_body.is_empty() {
+                None
+            } else {
+                Some(ctx.request_body)
+            },
+            outgoing_url: Some(ctx.target_url),
+            outgoing_headers: Some(ctx.outgoing_headers),
+            outgoing_body: ctx.outgoing_body,
+            response_status: Some(status_code),
+            response_headers: Some(response_headers_json),
+            response_body: Some(response_body),
+            duration_ms: Some(duration_ms),
+            error: None,
+        };
+
+        let _ = ctx.state.repository.create_request_log(log_req).await;
+    });
+
+    // Convert the receiver into a stream
+    let body_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+    let body = Body::from_stream(body_stream);
+
+    // Build response with original headers
+    let mut response = Response::new(body);
+    *response.status_mut() = StatusCode::from_u16(status_code as u16)
+        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    
+    // Forward response headers
+    for (key, value) in headers.iter() {
+        if let Ok(header_name) = axum::http::HeaderName::from_bytes(key.as_str().as_bytes())
+            && let Ok(header_value) = axum::http::HeaderValue::from_bytes(value.as_bytes())
+        {
+            response.headers_mut().insert(header_name, header_value);
+        }
+    }
+
+    Ok(response)
+}
+
 
 pub async fn proxy_handler(
     State(state): State<AppState>,
@@ -119,63 +286,78 @@ pub async fn proxy_handler(
     // Serialize outgoing headers for logging
     let outgoing_headers = serde_json::to_string(&outgoing_headers_map).unwrap_or_default();
 
-    // Execute request
-    let result = req_builder.send().await;
-
-    let duration_ms = start.elapsed().as_millis() as i64;
-
-    // Log request/response
-    let (response_status, response_headers, response_body, error) = match result {
-        Ok(resp) => {
-            let status = resp.status().as_u16() as i32;
-            let headers_map: std::collections::HashMap<String, String> = resp
-                .headers()
-                .iter()
-                .filter_map(|(k, v)| v.to_str().ok().map(|val| (k.to_string(), val.to_string())))
-                .collect();
-            let headers = serde_json::to_string(&headers_map).unwrap_or_default();
-            let body = resp.text().await.unwrap_or_default();
-            (Some(status), Some(headers), Some(body.clone()), None)
-        }
-        Err(e) => (None, None, None, Some(e.to_string())),
-    };
-
+    // Build request headers map for logging
     let request_headers_map: std::collections::HashMap<String, String> = headers
         .iter()
         .filter_map(|(k, v)| v.to_str().ok().map(|val| (k.to_string(), val.to_string())))
         .collect();
-    let request_headers = serde_json::to_string(&request_headers_map).unwrap_or_default();
 
-    let log_req = CreateRequestLogRequest {
-        user_id: proxy_key.user_id,
-        proxy_api_key_id: proxy_key.id,
-        llm_platform_id: platform_id,
-        method: method.to_string(),
-        path: path.clone(),
-        request_headers,
-        request_body: if body.is_empty() { None } else { Some(body) },
-        outgoing_url: Some(target_url),
-        outgoing_headers: Some(outgoing_headers),
-        outgoing_body,
-        response_status,
-        response_headers: response_headers.clone(),
-        response_body: response_body.clone(),
-        duration_ms: Some(duration_ms),
-        error: error.clone(),
-    };
+    // Execute request
+    let result = req_builder.send().await;
 
-    // Log to database (fire and forget)
-    tokio::spawn(async move {
-        let _ = state.repository.create_request_log(log_req).await;
-    });
+    match result {
+        Ok(resp) => {
+            let status = resp.status();
+            let headers = resp.headers().clone();
+            
+            // Check if this is a streaming response (SSE)
+            let is_streaming = headers
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .map(|ct| ct.contains("text/event-stream") || ct.contains("stream"))
+                .unwrap_or(false);
 
-    // Return response
-    if let Some(err) = error {
-        return Err(AppError::bad_gateway("proxy::proxy_handler", &err));
+            let ctx = LogContext {
+                state: state.clone(),
+                user_id: proxy_key.user_id,
+                proxy_key_id: proxy_key.id,
+                platform_id,
+                method: method.clone(),
+                path: path.clone(),
+                request_headers_map: request_headers_map.clone(),
+                request_body: body.clone(),
+                target_url: target_url.clone(),
+                outgoing_headers: outgoing_headers.clone(),
+                outgoing_body: outgoing_body.clone(),
+                start,
+            };
+
+            if is_streaming {
+                // Handle streaming response
+                handle_streaming_response(resp, status, headers, ctx).await
+            } else {
+                // Handle non-streaming response (original logic)
+                handle_regular_response(resp, status, headers, ctx).await
+            }
+        }
+        Err(e) => {
+            // Log error
+            let duration_ms = start.elapsed().as_millis() as i64;
+            let request_headers = serde_json::to_string(&request_headers_map).unwrap_or_default();
+            
+            let log_req = CreateRequestLogRequest {
+                user_id: proxy_key.user_id,
+                proxy_api_key_id: proxy_key.id,
+                llm_platform_id: platform_id,
+                method: method.to_string(),
+                path: path.clone(),
+                request_headers,
+                request_body: if body.is_empty() { None } else { Some(body) },
+                outgoing_url: Some(target_url),
+                outgoing_headers: Some(outgoing_headers),
+                outgoing_body,
+                response_status: None,
+                response_headers: None,
+                response_body: None,
+                duration_ms: Some(duration_ms),
+                error: Some(e.to_string()),
+            };
+
+            tokio::spawn(async move {
+                let _ = state.repository.create_request_log(log_req).await;
+            });
+
+            Err(AppError::bad_gateway("proxy::proxy_handler", &e.to_string()))
+        }
     }
-
-    let status_code = StatusCode::from_u16(response_status.unwrap() as u16)
-        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-
-    Ok((status_code, response_body.unwrap_or_default()).into_response())
 }
