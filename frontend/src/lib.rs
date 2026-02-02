@@ -30,11 +30,10 @@ fn app() -> Html {
         let user = user.clone();
         use_effect_with((), move |_| {
             wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(response) = Request::get("/api/user").send().await {
-                    if let Ok(u) = response.json::<User>().await {
+                if let Ok(response) = Request::get("/api/user").send().await
+                    && let Ok(u) = response.json::<User>().await {
                         user.set(Some(u));
                     }
-                }
             });
             || ()
         });

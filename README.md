@@ -9,7 +9,7 @@ A simple observability platform for LLM APIs built with Rust.
 1. **Proxy Layer** - Acts as a proxy between your application and any LLM platform (OpenAI, self-hosted Ollama, etc.)
 2. **Observability** - Log and observe all API calls that your app makes to LLM platforms
 3. **Multi-Platform Support** - Configure multiple LLM platforms with different API keys
-4. **API Key Management** - Secure proxy access with generated API keys
+4. **Per-Platform API Keys** - Each API key is tied to a specific platform, simplifying client configuration
 5. **Web Dashboard** - Clean UI to view request logs and manage platforms/keys
 6. **Reverse Proxy Auth** - Auto-create users based on Remote-User header for frontend authentication
 
@@ -29,9 +29,47 @@ A simple observability platform for LLM APIs built with Rust.
 
 - Rust 2024 edition (nightly or stable with edition = "2024")
 - Cargo
+- [just](https://github.com/casey/just) command runner (recommended)
 - Trunk (for building frontend)
+- Caddy (optional, for development with authentication)
 
-### Installation
+### Quick Start
+
+The easiest way to build and run the project is using `just`:
+
+```bash
+# Install just if you don't have it
+cargo install just
+
+# Check dependencies
+just check-deps
+
+# Build the project
+just build
+
+# Run the backend server
+just run
+
+# Or run in development mode with auto-reload
+just dev
+
+# For development with Caddy reverse proxy (adds auth header):
+# Terminal 1:
+just serve-backend
+
+# Terminal 2:
+just serve-caddy
+# Access at http://localhost:8081 with automatic Remote-User header
+```
+
+See all available commands with:
+```bash
+just --list
+```
+
+### Manual Installation
+
+If you prefer not to use `just`:
 
 1. Clone the repository:
 ```bash
@@ -48,14 +86,15 @@ export PORT=8080
 
 3. Build and run the backend:
 ```bash
-cargo run --package backend
+cd backend
+cargo run --release
 ```
 
 The server will start on `http://localhost:8080`
 
 ### Building the Frontend
 
-The frontend is built with Yew and requires `trunk`:
+The frontend is automatically built and embedded into the backend binary. For manual frontend development:
 
 ```bash
 # Install trunk
@@ -63,7 +102,7 @@ cargo install trunk
 
 # Build and serve the frontend (in development)
 cd frontend
-trunk serve --port 8081
+trunk serve --port 8082
 
 # Or build for production
 trunk build --release
@@ -128,22 +167,24 @@ In the dashboard, navigate to "LLM Platforms" and add your platforms:
 
 ### 3. Generate Proxy API Keys
 
-Navigate to "API Keys" and generate a key for your application. Copy it immediately as it won't be shown again.
+Navigate to "API Keys" and generate a key for your application. When creating an API key, you'll need to:
+
+1. Give it a descriptive name
+2. **Select the LLM platform** it should route to
+
+Each API key is tied to a specific platform, so you don't need to specify the platform in your application's URL. Copy the key immediately as it won't be shown again.
 
 ### 4. Configure Your Application
 
-Point your application to use the proxy:
+Point your application to use the proxy. The API key automatically determines which platform to route to:
 
 ```python
 import openai
 
-# Configure to use the proxy
-openai.api_base = "http://localhost:8080/proxy/1"  # 1 is your platform ID
-
-# Use your proxy API key for authentication
+# Configure to use the proxy - no platform ID needed in URL!
 client = openai.OpenAI(
-    base_url="http://localhost:8080/proxy/1",
-    api_key="llmp_xxxxxxxxxxxxx"  # Your proxy API key, not OpenAI key
+    base_url="http://localhost:8080/proxy",
+    api_key="llmp_xxxxxxxxxxxxx"  # Your proxy API key (identifies both auth and platform)
 )
 
 response = client.chat.completions.create(
@@ -154,9 +195,12 @@ response = client.chat.completions.create(
 
 The proxy will:
 1. Authenticate your request using the proxy API key
-2. Forward the request to the configured platform with its API key
-3. Log the request and response
-4. Return the response to your app
+2. **Automatically determine which platform to route to** from the API key
+3. Forward the request to the configured platform with its API key
+4. Log the request and response
+5. Return the response to your app
+
+**Note**: Your application code doesn't need to know about platform IDs. The API key handles both authentication and platform routing.
 
 ### 5. View Request Logs
 
@@ -190,7 +234,7 @@ Complete API documentation is available in OpenAPI 3.0 format:
 
 **Proxy Endpoint** (requires Authorization: Bearer header with proxy API key):
 
-- `ANY /proxy/:platform_id/*path` - Proxy requests to LLM platform
+- `ANY /proxy/*path` - Proxy requests to LLM platform (platform determined by API key)
 
 ## Database Schema
 
@@ -198,24 +242,69 @@ The SQLite database contains four main tables:
 
 - `users` - Auto-created from Remote-User header
 - `llm_platforms` - LLM platform configurations (with API keys)
-- `proxy_api_keys` - Generated API keys for proxy access
+- `proxy_api_keys` - Generated API keys for proxy access (each linked to a specific platform)
 - `request_logs` - All proxied requests and responses with timing data
 
 ## Development
 
-### Run tests
+This project uses [just](https://github.com/casey/just) as a command runner for common development tasks.
+
+### Common Commands
+
+```bash
+# Show all available commands
+just --list
+
+# Build and run
+just build          # Build release binary
+just build-dev      # Build debug binary
+just run            # Run backend (release)
+just dev            # Run with auto-reload (requires cargo-watch)
+
+# Development with Caddy
+just serve-backend  # Start backend in background
+just serve-caddy    # Start Caddy reverse proxy with auth
+just stop           # Stop all services
+
+# Testing and quality
+just test           # Run tests
+just test-verbose   # Run tests with output
+just lint           # Run clippy
+just fix            # Auto-fix clippy issues
+just fmt            # Format code
+
+# Database management
+just db-setup       # Setup database
+just db-backup      # Backup database
+just db-reset       # Reset database (WARNING: deletes data)
+just db-schema      # View schema
+just db-cli         # Open SQLite CLI
+
+# Utilities
+just clean          # Clean build artifacts
+just rebuild        # Clean and rebuild
+just check-deps     # Check installed dependencies
+just install-deps   # Install dev dependencies
+just info           # Show project info
+```
+
+### Manual Development Commands
+
+If not using `just`:
+
+#### Run tests
 
 ```bash
 cargo test
 ```
 
-### Format code
+#### Format code
 
 ```bash
 cargo fmt
 ```
 
-### Run linter
+#### Run linter
 
 ```bash
 cargo clippy
@@ -254,8 +343,8 @@ cargo clippy
 1. **UI Access**: Browser → Reverse Proxy (adds Remote-User) → Frontend
 2. **User Creation**: Automatic on first UI access based on Remote-User header
 3. **Platform Setup**: User adds LLM platforms (with their API keys) via UI
-4. **Key Generation**: User generates proxy API keys via UI
-5. **Proxy Request**: App → Proxy (with proxy API key) → LLM Platform (with platform API key)
+4. **Key Generation**: User generates proxy API keys via UI, selecting which platform each key routes to
+5. **Proxy Request**: App → Proxy (with proxy API key) → LLM Platform (determined by API key)
 6. **Logging**: All requests/responses logged to database
 7. **Observability**: View logs in real-time via UI
 

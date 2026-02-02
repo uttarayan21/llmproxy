@@ -24,7 +24,7 @@ pub struct CreatePlatformRequest {
 
 #[function_component(Platforms)]
 pub fn platforms() -> Html {
-    let platforms = use_state(|| Vec::<LlmPlatform>::new());
+    let platforms = use_state(Vec::<LlmPlatform>::new);
     let loading = use_state(|| true);
     let show_form = use_state(|| false);
     let refresh = use_state(|| 0);
@@ -40,11 +40,10 @@ pub fn platforms() -> Html {
         let refresh_val = *refresh;
         use_effect_with(refresh_val, move |_| {
             wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(response) = Request::get("/api/platforms").send().await {
-                    if let Ok(data) = response.json::<Vec<LlmPlatform>>().await {
+                if let Ok(response) = Request::get("/api/platforms").send().await
+                    && let Ok(data) = response.json::<Vec<LlmPlatform>>().await {
                         platforms.set(data);
                     }
-                }
                 loading.set(false);
             });
             || ()

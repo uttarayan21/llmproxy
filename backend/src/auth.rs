@@ -1,4 +1,4 @@
-use crate::{AppState, models::User, repository::Repository};
+use crate::{AppState, models::User};
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode},

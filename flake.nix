@@ -148,6 +148,7 @@
                   sqlite
                   caddy
                   lsof
+                  cargo-watch
                 ]
                 ++ (lib.optionals pkgs.stdenv.isDarwin [
                   apple-sdk_26

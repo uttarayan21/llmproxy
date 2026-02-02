@@ -1,6 +1,5 @@
-use crate::{AppState, api_key, models::CreateRequestLogRequest, repository::Repository};
+use crate::{AppState, api_key, models::CreateRequestLogRequest};
 use axum::{
-    body::Body,
     extract::{Path, State},
     http::{HeaderMap, Method, StatusCode},
     response::{IntoResponse, Response},
@@ -10,7 +9,7 @@ use std::time::Instant;
 
 pub async fn proxy_handler(
     State(state): State<AppState>,
-    Path((platform_id, path)): Path<(i64, String)>,
+    Path(path): Path<String>,
     method: Method,
     headers: HeaderMap,
     body: String,
@@ -35,6 +34,11 @@ pub async fn proxy_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Get the platform ID from the API key
+    let platform_id = proxy_key
+        .llm_platform_id
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Update last used timestamp
     let _ = state
@@ -70,11 +74,10 @@ pub async fn proxy_handler(
     // Forward relevant headers (excluding our authorization)
     for (key, value) in headers.iter() {
         let key_str = key.as_str();
-        if key_str != "authorization" && key_str != "host" {
-            if let Ok(value_str) = value.to_str() {
+        if key_str != "authorization" && key_str != "host"
+            && let Ok(value_str) = value.to_str() {
                 req_builder = req_builder.header(key_str, value_str);
             }
-        }
     }
 
     // Add body if present

@@ -9,6 +9,7 @@ pub struct ProxyApiKey {
     pub user_id: i64,
     pub key_prefix: String,
     pub name: String,
+    pub llm_platform_id: Option<i64>,
     pub created_at: String,
     pub last_used_at: Option<String>,
 }
@@ -16,6 +17,7 @@ pub struct ProxyApiKey {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CreateApiKeyRequest {
     pub name: String,
+    pub llm_platform_id: i64,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -24,30 +26,50 @@ pub struct ApiKeyResponse {
     pub key: String,
     pub key_prefix: String,
     pub name: String,
+    pub llm_platform_id: i64,
     pub created_at: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+pub struct LlmPlatform {
+    pub id: i64,
+    pub user_id: i64,
+    pub name: String,
+    pub base_url: String,
+    pub platform_type: String,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[function_component(ApiKeys)]
 pub fn api_keys() -> Html {
-    let keys = use_state(|| Vec::<ProxyApiKey>::new());
+    let keys = use_state(Vec::<ProxyApiKey>::new);
+    let platforms = use_state(Vec::<LlmPlatform>::new);
     let loading = use_state(|| true);
     let show_form = use_state(|| false);
     let new_key = use_state(|| Option::<ApiKeyResponse>::None);
     let refresh = use_state(|| 0);
 
     let name_ref = use_node_ref();
+    let platform_ref = use_node_ref();
 
     {
         let keys = keys.clone();
+        let platforms = platforms.clone();
         let loading = loading.clone();
         let refresh_val = *refresh;
         use_effect_with(refresh_val, move |_| {
             wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(response) = Request::get("/api/keys").send().await {
-                    if let Ok(data) = response.json::<Vec<ProxyApiKey>>().await {
+                // Fetch keys
+                if let Ok(response) = Request::get("/api/keys").send().await
+                    && let Ok(data) = response.json::<Vec<ProxyApiKey>>().await {
                         keys.set(data);
                     }
-                }
+                // Fetch platforms
+                if let Ok(response) = Request::get("/api/platforms").send().await
+                    && let Ok(data) = response.json::<Vec<LlmPlatform>>().await {
+                        platforms.set(data);
+                    }
                 loading.set(false);
             });
             || ()
@@ -65,6 +87,7 @@ pub fn api_keys() -> Html {
 
     let on_submit = {
         let name_ref = name_ref.clone();
+        let platform_ref = platform_ref.clone();
         let show_form = show_form.clone();
         let new_key = new_key.clone();
         let refresh = refresh.clone();
@@ -73,8 +96,24 @@ pub fn api_keys() -> Html {
             e.prevent_default();
 
             let name = name_ref.cast::<HtmlInputElement>().unwrap().value();
+            let platform_id_str = platform_ref
+                .cast::<web_sys::HtmlSelectElement>()
+                .unwrap()
+                .value();
+            
+            // Parse platform ID, return early if invalid
+            let platform_id = match platform_id_str.parse::<i64>() {
+                Ok(id) => id,
+                Err(_) => {
+                    // Invalid selection, don't submit
+                    return;
+                }
+            };
 
-            let request = CreateApiKeyRequest { name };
+            let request = CreateApiKeyRequest {
+                name,
+                llm_platform_id: platform_id,
+            };
 
             let show_form = show_form.clone();
             let new_key = new_key.clone();
@@ -86,13 +125,11 @@ pub fn api_keys() -> Html {
                     .unwrap()
                     .send()
                     .await
-                {
-                    if let Ok(key_response) = response.json::<ApiKeyResponse>().await {
+                    && let Ok(key_response) = response.json::<ApiKeyResponse>().await {
                         new_key.set(Some(key_response));
                         show_form.set(false);
                         refresh.set(*refresh + 1);
                     }
-                }
             });
         })
     };
@@ -159,6 +196,21 @@ pub fn api_keys() -> Html {
                                 <label>{ "Key Name:" }</label>
                                 <input type="text" ref={name_ref.clone()} placeholder="My API Key" required=true />
                             </div>
+                            <div class="form-group">
+                                <label>{ "Platform:" }</label>
+                                <select ref={platform_ref.clone()} required=true>
+                                    <option value="" disabled=true selected=true>{ "Select a platform" }</option>
+                                    {
+                                        platforms.iter().map(|platform| {
+                                            html! {
+                                                <option value={platform.id.to_string()}>
+                                                    { &platform.name }{ " (" }{ &platform.platform_type }{ ")" }
+                                                </option>
+                                            }
+                                        }).collect::<Html>()
+                                    }
+                                </select>
+                            </div>
                             <button type="submit" class="btn-primary">{ "Generate" }</button>
                         </form>
                     }
@@ -178,11 +230,17 @@ pub fn api_keys() -> Html {
                             {
                                 keys.iter().map(|key| {
                                     let on_delete_click = on_delete(key.id);
+                                    let platform_name = key.llm_platform_id
+                                        .and_then(|id| platforms.iter().find(|p| p.id == id))
+                                        .map(|p| p.name.clone())
+                                        .unwrap_or_else(|| "Unknown".to_string());
+                                    
                                     html! {
                                         <div class="key-item">
                                             <div class="key-info">
                                                 <h3>{ &key.name }</h3>
                                                 <div class="key-details">
+                                                    <div><strong>{ "Platform:" }</strong> { platform_name }</div>
                                                     <div><strong>{ "Prefix:" }</strong> <code>{ &key.key_prefix }{ "..." }</code></div>
                                                     <div><strong>{ "Created:" }</strong> { &key.created_at }</div>
                                                     {

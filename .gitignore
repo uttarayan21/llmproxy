@@ -8,3 +8,5 @@
 /frontend/dist
 /frontend/pkg
 *.log
+.backend.pid
+*.db

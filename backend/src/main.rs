@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Proxy routes (uses API key authentication, not reverse proxy auth)
     let proxy_routes = Router::new().route(
-        "/proxy/:platform_id/*path",
+        "/proxy/*path",
         post(proxy::proxy_handler)
             .get(proxy::proxy_handler)
             .put(proxy::proxy_handler)

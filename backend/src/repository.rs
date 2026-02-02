@@ -107,14 +107,16 @@ impl Repository {
         name: &str,
         key_hash: &str,
         key_prefix: &str,
+        llm_platform_id: i64,
     ) -> Result<ProxyApiKey> {
         let result = sqlx::query(
-            "INSERT INTO proxy_api_keys (user_id, name, key_hash, key_prefix) VALUES (?, ?, ?, ?)",
+            "INSERT INTO proxy_api_keys (user_id, name, key_hash, key_prefix, llm_platform_id) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(user_id)
         .bind(name)
         .bind(key_hash)
         .bind(key_prefix)
+        .bind(llm_platform_id)
         .execute(&self.pool)
         .await?;
 

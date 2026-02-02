@@ -15,6 +15,7 @@ web-sys = { version = "0.3", features = [
   "HtmlElement",
   "Headers",
   "HtmlInputElement",
+  "HtmlSelectElement",
   "SubmitEvent",
 ] }
 gloo-net = { version = "0.6", features = ["http"] }

@@ -22,7 +22,7 @@ pub struct RequestLog {
 
 #[function_component(RequestLogs)]
 pub fn request_logs() -> Html {
-    let logs = use_state(|| Vec::<RequestLog>::new());
+    let logs = use_state(Vec::<RequestLog>::new);
     let selected_log = use_state(|| Option::<RequestLog>::None);
     let loading = use_state(|| true);
 
@@ -31,11 +31,10 @@ pub fn request_logs() -> Html {
         let loading = loading.clone();
         use_effect_with((), move |_| {
             wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(response) = Request::get("/api/logs?limit=50").send().await {
-                    if let Ok(data) = response.json::<Vec<RequestLog>>().await {
+                if let Ok(response) = Request::get("/api/logs?limit=50").send().await
+                    && let Ok(data) = response.json::<Vec<RequestLog>>().await {
                         logs.set(data);
                     }
-                }
                 loading.set(false);
             });
             || ()

@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -39,6 +38,7 @@ pub struct ProxyApiKey {
     pub key_hash: String,
     pub key_prefix: String,
     pub name: String,
+    pub llm_platform_id: Option<i64>,
     pub created_at: String,
     pub last_used_at: Option<String>,
 }
@@ -46,6 +46,7 @@ pub struct ProxyApiKey {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProxyApiKeyRequest {
     pub name: String,
+    pub llm_platform_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +55,7 @@ pub struct ProxyApiKeyResponse {
     pub key: String, // Only returned once during creation
     pub key_prefix: String,
     pub name: String,
+    pub llm_platform_id: i64,
     pub created_at: String,
 }
 
