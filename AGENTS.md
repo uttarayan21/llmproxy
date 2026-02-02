@@ -53,8 +53,10 @@ cd backend && cargo clippy -- -D warnings
 cd frontend && trunk build --release
 cd frontend && cargo test
 
-# Single Test
+# Single Test (Examples)
 cd backend && cargo test test_generate_api_key -- --nocapture
+cd backend && cargo test test_hash_api_key_consistency -- --show-output
+cd backend && cargo test error::tests:: -- --nocapture  # Run all tests in error module
 ```
 
 ## Code Style Guidelines
@@ -264,6 +266,11 @@ frontend/src/
 - API keys format: `llmp_` + 32-char UUID (without hyphens)
 - Proxy endpoint: `/proxy/*path` (platform determined by API key)
 - Auth: UI uses `Remote-User` header, proxy uses `Authorization: Bearer` tokens
+- **Streaming**: Proxy automatically detects and forwards streaming responses (SSE) from LLM platforms
+  - Detection: Checks `Content-Type` header for `text/event-stream` or `stream`
+  - Implementation: Uses `reqwest::bytes_stream()` and Axum `Body::from_stream()`
+  - Logging: Collects chunks during streaming, logs complete response after stream ends
+  - Context struct: `LogContext` groups parameters to avoid too_many_arguments clippy warning
 
 ## Common Tasks
 

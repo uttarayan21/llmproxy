@@ -44,9 +44,9 @@ fn generate_incoming_curl(log: &RequestLog, proxy_url: &str) -> String {
     } else {
         format!("/{}", log.path)
     };
-    
+
     let mut curl = format!("curl -X {} '{}{}'", log.method, proxy_url, path);
-    
+
     // Add headers
     if let Ok(headers) = serde_json::from_str::<HashMap<String, String>>(&log.request_headers) {
         for (key, value) in headers.iter() {
@@ -56,12 +56,12 @@ fn generate_incoming_curl(log: &RequestLog, proxy_url: &str) -> String {
             }
         }
     }
-    
+
     // Add body
     if let Some(body) = &log.request_body {
         curl.push_str(&format!(" \\\n  -d '{}'", body.replace('\'', "'\\''")));
     }
-    
+
     curl
 }
 
@@ -69,20 +69,21 @@ fn generate_incoming_curl(log: &RequestLog, proxy_url: &str) -> String {
 fn generate_outgoing_curl(log: &RequestLog) -> Option<String> {
     let url = log.outgoing_url.as_ref()?;
     let mut curl = format!("curl -X {} '{}'", log.method, url);
-    
+
     // Add headers
     if let Some(headers_str) = &log.outgoing_headers
-        && let Ok(headers) = serde_json::from_str::<HashMap<String, String>>(headers_str) {
-            for (key, value) in headers.iter() {
-                curl.push_str(&format!(" \\\n  -H '{}: {}'", key, value));
-            }
+        && let Ok(headers) = serde_json::from_str::<HashMap<String, String>>(headers_str)
+    {
+        for (key, value) in headers.iter() {
+            curl.push_str(&format!(" \\\n  -H '{}: {}'", key, value));
         }
-    
+    }
+
     // Add body
     if let Some(body) = &log.outgoing_body {
         curl.push_str(&format!(" \\\n  -d '{}'", body.replace('\'', "'\\''")));
     }
-    
+
     Some(curl)
 }
 
@@ -118,14 +119,16 @@ pub fn request_logs() -> Html {
             wasm_bindgen_futures::spawn_local(async move {
                 // Fetch logs
                 if let Ok(response) = Request::get("/api/logs?limit=50").send().await
-                    && let Ok(data) = response.json::<Vec<RequestLog>>().await {
-                        logs.set(data);
-                    }
+                    && let Ok(data) = response.json::<Vec<RequestLog>>().await
+                {
+                    logs.set(data);
+                }
                 // Fetch platforms
                 if let Ok(response) = Request::get("/api/platforms").send().await
-                    && let Ok(data) = response.json::<Vec<LlmPlatform>>().await {
-                        platforms.set(data);
-                    }
+                    && let Ok(data) = response.json::<Vec<LlmPlatform>>().await
+                {
+                    platforms.set(data);
+                }
                 loading.set(false);
             });
             || ()
@@ -167,7 +170,7 @@ pub fn request_logs() -> Html {
                                             .find(|p| p.id == log.llm_platform_id)
                                             .map(|p| p.name.clone())
                                             .unwrap_or_else(|| "Unknown".to_string());
-                                        
+
                                         html! {
                                             <div
                                                 class="log-item"
@@ -206,21 +209,21 @@ pub fn request_logs() -> Html {
                                     let platform = platforms.iter()
                                         .find(|p| p.id == log.llm_platform_id)
                                         .cloned();
-                                    
+
                                     // Prepare curl commands outside html! macro
                                     let proxy_url = window()
                                         .and_then(|w| w.location().origin().ok())
                                         .unwrap_or_else(|| "http://localhost:8080".to_string());
                                     let incoming_curl = generate_incoming_curl(log, &format!("{}/proxy", proxy_url));
                                     let outgoing_curl = generate_outgoing_curl(log);
-                                    
+
                                     let on_copy_incoming = {
                                         let curl = incoming_curl.clone();
                                         Callback::from(move |_| {
                                             copy_to_clipboard(&curl);
                                         })
                                     };
-                                    
+
                                     let on_copy_outgoing = {
                                         let curl = outgoing_curl.clone();
                                         Callback::from(move |_| {
@@ -229,7 +232,7 @@ pub fn request_logs() -> Html {
                                             }
                                         })
                                     };
-                                    
+
                                     html! {
                                         <div class="log-detail">
                                             <div class="detail-header">

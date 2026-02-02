@@ -60,9 +60,7 @@ pub async fn update_llm_platform(
                 &format!("Failed to update LLM platform: {}", e),
             )
         })?
-        .ok_or_else(|| {
-            AppError::not_found("handlers::update_llm_platform", "LLM platform")
-        })?;
+        .ok_or_else(|| AppError::not_found("handlers::update_llm_platform", "LLM platform"))?;
 
     Ok(Json(platform))
 }
@@ -110,9 +108,7 @@ pub async fn create_proxy_api_key(
                 &format!("Failed to verify LLM platform: {}", e),
             )
         })?
-        .ok_or_else(|| {
-            AppError::not_found("handlers::create_proxy_api_key", "LLM platform")
-        })?;
+        .ok_or_else(|| AppError::not_found("handlers::create_proxy_api_key", "LLM platform"))?;
 
     let api_key = api_key::generate_api_key();
     let key_hash = api_key::hash_api_key(&api_key);

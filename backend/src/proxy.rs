@@ -72,8 +72,8 @@ async fn handle_regular_response(
     });
 
     // Return response
-    let axum_status = StatusCode::from_u16(status_code as u16)
-        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let axum_status =
+        StatusCode::from_u16(status_code as u16).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     Ok((axum_status, response_body).into_response())
 }
 
@@ -85,7 +85,7 @@ async fn handle_streaming_response(
     ctx: LogContext,
 ) -> Result<Response, AppError> {
     let status_code = status.as_u16() as i32;
-    
+
     // Extract response headers
     let headers_map: std::collections::HashMap<String, String> = headers
         .iter()
@@ -96,11 +96,11 @@ async fn handle_streaming_response(
     // Create a stream that collects chunks for logging
     let mut stream = resp.bytes_stream();
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<bytes::Bytes, std::io::Error>>(100);
-    
+
     // Spawn a task to collect chunks and log after completion
     tokio::spawn(async move {
         let mut collected_chunks = Vec::new();
-        
+
         while let Some(chunk_result) = stream.next().await {
             match chunk_result {
                 Ok(chunk) => {
@@ -110,9 +110,7 @@ async fn handle_streaming_response(
                 }
                 Err(e) => {
                     // Send error downstream
-                    let _ = tx
-                        .send(Err(std::io::Error::other(e.to_string())))
-                        .await;
+                    let _ = tx.send(Err(std::io::Error::other(e.to_string()))).await;
                     break;
                 }
             }
@@ -158,9 +156,9 @@ async fn handle_streaming_response(
 
     // Build response with original headers
     let mut response = Response::new(body);
-    *response.status_mut() = StatusCode::from_u16(status_code as u16)
-        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-    
+    *response.status_mut() =
+        StatusCode::from_u16(status_code as u16).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+
     // Forward response headers
     for (key, value) in headers.iter() {
         if let Ok(header_name) = axum::http::HeaderName::from_bytes(key.as_str().as_bytes())
@@ -172,7 +170,6 @@ async fn handle_streaming_response(
 
     Ok(response)
 }
-
 
 pub async fn proxy_handler(
     State(state): State<AppState>,
@@ -267,7 +264,8 @@ pub async fn proxy_handler(
     // Forward relevant headers (excluding our authorization)
     for (key, value) in headers.iter() {
         let key_str = key.as_str();
-        if key_str != "authorization" && key_str != "host"
+        if key_str != "authorization"
+            && key_str != "host"
             && let Ok(value_str) = value.to_str()
         {
             req_builder = req_builder.header(key_str, value_str);
@@ -299,13 +297,14 @@ pub async fn proxy_handler(
         Ok(resp) => {
             let status = resp.status();
             let headers = resp.headers().clone();
-            
+
             // Check if this is a streaming response (SSE)
-            let is_streaming = headers
-                .get("content-type")
-                .and_then(|v| v.to_str().ok())
-                .map(|ct| ct.contains("text/event-stream") || ct.contains("stream"))
-                .unwrap_or(false);
+            // let is_streaming = headers
+            //     .get("content-type")
+            //     .and_then(|v| v.to_str().ok())
+            //     .map(|ct| ct.contains("text/event-stream") || ct.contains("stream"))
+            //     .unwrap_or(false);
+            let is_streaming = true;
 
             let ctx = LogContext {
                 state: state.clone(),
@@ -334,7 +333,7 @@ pub async fn proxy_handler(
             // Log error
             let duration_ms = start.elapsed().as_millis() as i64;
             let request_headers = serde_json::to_string(&request_headers_map).unwrap_or_default();
-            
+
             let log_req = CreateRequestLogRequest {
                 user_id: proxy_key.user_id,
                 proxy_api_key_id: proxy_key.id,
@@ -357,7 +356,10 @@ pub async fn proxy_handler(
                 let _ = state.repository.create_request_log(log_req).await;
             });
 
-            Err(AppError::bad_gateway("proxy::proxy_handler", &e.to_string()))
+            Err(AppError::bad_gateway(
+                "proxy::proxy_handler",
+                &e.to_string(),
+            ))
         }
     }
 }

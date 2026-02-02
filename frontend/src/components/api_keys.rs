@@ -62,14 +62,16 @@ pub fn api_keys() -> Html {
             wasm_bindgen_futures::spawn_local(async move {
                 // Fetch keys
                 if let Ok(response) = Request::get("/api/keys").send().await
-                    && let Ok(data) = response.json::<Vec<ProxyApiKey>>().await {
-                        keys.set(data);
-                    }
+                    && let Ok(data) = response.json::<Vec<ProxyApiKey>>().await
+                {
+                    keys.set(data);
+                }
                 // Fetch platforms
                 if let Ok(response) = Request::get("/api/platforms").send().await
-                    && let Ok(data) = response.json::<Vec<LlmPlatform>>().await {
-                        platforms.set(data);
-                    }
+                    && let Ok(data) = response.json::<Vec<LlmPlatform>>().await
+                {
+                    platforms.set(data);
+                }
                 loading.set(false);
             });
             || ()
@@ -100,7 +102,7 @@ pub fn api_keys() -> Html {
                 .cast::<web_sys::HtmlSelectElement>()
                 .unwrap()
                 .value();
-            
+
             // Parse platform ID, return early if invalid
             let platform_id = match platform_id_str.parse::<i64>() {
                 Ok(id) => id,
@@ -125,11 +127,12 @@ pub fn api_keys() -> Html {
                     .unwrap()
                     .send()
                     .await
-                    && let Ok(key_response) = response.json::<ApiKeyResponse>().await {
-                        new_key.set(Some(key_response));
-                        show_form.set(false);
-                        refresh.set(*refresh + 1);
-                    }
+                    && let Ok(key_response) = response.json::<ApiKeyResponse>().await
+                {
+                    new_key.set(Some(key_response));
+                    show_form.set(false);
+                    refresh.set(*refresh + 1);
+                }
             });
         })
     };
@@ -139,7 +142,11 @@ pub fn api_keys() -> Html {
         Callback::from(move |_| {
             let refresh = refresh.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                if Request::delete(&format!("/api/keys/{}", id)).send().await.is_ok() {
+                if Request::delete(&format!("/api/keys/{}", id))
+                    .send()
+                    .await
+                    .is_ok()
+                {
                     refresh.set(*refresh + 1);
                 }
             });
@@ -234,7 +241,7 @@ pub fn api_keys() -> Html {
                                         .and_then(|id| platforms.iter().find(|p| p.id == id))
                                         .map(|p| p.name.clone())
                                         .unwrap_or_else(|| "Unknown".to_string());
-                                    
+
                                     html! {
                                         <div class="key-item">
                                             <div class="key-info">

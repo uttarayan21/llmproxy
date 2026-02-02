@@ -50,9 +50,10 @@ pub fn platforms() -> Html {
         use_effect_with(refresh_val, move |_| {
             wasm_bindgen_futures::spawn_local(async move {
                 if let Ok(response) = Request::get("/api/platforms").send().await
-                    && let Ok(data) = response.json::<Vec<LlmPlatform>>().await {
-                        platforms.set(data);
-                    }
+                    && let Ok(data) = response.json::<Vec<LlmPlatform>>().await
+                {
+                    platforms.set(data);
+                }
                 loading.set(false);
             });
             || ()
@@ -66,12 +67,12 @@ pub fn platforms() -> Html {
         let base_url_ref = base_url_ref.clone();
         let api_key_ref = api_key_ref.clone();
         let platform_type_ref = platform_type_ref.clone();
-        
+
         Callback::from(move |_| {
             let new_state = !*show_form;
             show_form.set(new_state);
             editing_id.set(None);
-            
+
             // Clear form fields when closing or opening
             if let Some(input) = name_ref.cast::<HtmlInputElement>() {
                 input.set_value("");
@@ -95,7 +96,7 @@ pub fn platforms() -> Html {
         let base_url_ref = base_url_ref.clone();
         let api_key_ref = api_key_ref.clone();
         let platform_type_ref = platform_type_ref.clone();
-        
+
         move |platform: LlmPlatform| {
             let show_form = show_form.clone();
             let editing_id = editing_id.clone();
@@ -103,11 +104,11 @@ pub fn platforms() -> Html {
             let base_url_ref = base_url_ref.clone();
             let api_key_ref = api_key_ref.clone();
             let platform_type_ref = platform_type_ref.clone();
-            
+
             Callback::from(move |_| {
                 editing_id.set(Some(platform.id));
                 show_form.set(true);
-                
+
                 // Pre-fill form with existing values
                 if let Some(input) = name_ref.cast::<HtmlInputElement>() {
                     input.set_value(&platform.name);
@@ -156,7 +157,11 @@ pub fn platforms() -> Html {
                     let request = UpdatePlatformRequest {
                         name,
                         base_url,
-                        api_key: if api_key.is_empty() { None } else { Some(api_key) },
+                        api_key: if api_key.is_empty() {
+                            None
+                        } else {
+                            Some(api_key)
+                        },
                         platform_type,
                     };
                     Request::put(&format!("/api/platforms/{}", id))
@@ -227,11 +232,11 @@ pub fn platforms() -> Html {
                             </div>
                             <div class="form-group">
                                 <label>{ "API Key:" }</label>
-                                <input 
-                                    type="password" 
-                                    ref={api_key_ref.clone()} 
+                                <input
+                                    type="password"
+                                    ref={api_key_ref.clone()}
                                     placeholder={if is_editing { "Leave empty to keep current key" } else { "" }}
-                                    required={!is_editing} 
+                                    required={!is_editing}
                                 />
                             </div>
                             <div class="form-group">
