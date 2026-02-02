@@ -1,5 +1,5 @@
-# Caddyfile for local LLMPROXY testing
-# This configuration adds the Remote-User header for authentication
+# Caddyfile for local LLMPROXY testing with authentication
+# This configuration adds the Remote-User header and proxies all requests to the backend
 
 # Main configuration
 {
@@ -18,28 +18,17 @@
 		Remote-User "dev-user"
 	}
 	
-	# Serve frontend static files
-	
-	# Try files, fallback to index.html for SPA routing
-	
-	# Proxy API requests to backend
-	reverse_proxy /api/* localhost:8080 {
+	# Proxy all requests to backend (which now serves the frontend too)
+	reverse_proxy localhost:8080 {
 		# Forward Remote-User header
 		header_up Remote-User {header.Remote-User}
-	}
-	
-	reverse_proxy /proxy/* localhost:8080 {
+		
 		# Increase timeouts for LLM requests
 		transport http {
 			read_timeout 300s
 			write_timeout 300s
 		}
 	}
-
-	root * ./frontend/dist
-	file_server
-
-	try_files {path} /index.html
 	
 	# Logging
 	log {

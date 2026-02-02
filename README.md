@@ -1,5 +1,7 @@
 # LLMPROXY
 
+# SLOP: Slop warning this full project was vibecoded with opencode + claude-sonnet-4.5
+
 A simple observability platform for LLM APIs built with Rust.
 
 ## Features

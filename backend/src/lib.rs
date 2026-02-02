@@ -1,6 +1,7 @@
 pub mod api_key;
 pub mod auth;
 pub mod db;
+pub mod embedded;
 pub mod handlers;
 pub mod models;
 pub mod proxy;

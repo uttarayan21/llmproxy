@@ -1,10 +1,13 @@
 use axum::{
-    Router, middleware,
+    Router,
+    http::{StatusCode, Uri, header},
+    middleware,
+    response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
-use backend::{AppState, auth, db, handlers, proxy, repository::Repository};
+use backend::{AppState, auth, db, embedded::Assets, handlers, proxy, repository::Repository};
 use std::env;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -58,10 +61,11 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Build application
+    tracing::info!("Serving frontend from embedded assets");
     let app = Router::new()
         .merge(api_routes)
         .merge(proxy_routes)
-        .layer(CorsLayer::permissive())
+        .fallback(serve_embedded_assets)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
 
@@ -73,4 +77,31 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+async fn serve_embedded_assets(uri: Uri) -> Response {
+    let path = uri.path().trim_start_matches('/');
+
+    // Try to get the requested file
+    if let Some(content) = Assets::get(path) {
+        let mime = mime_guess::from_path(path).first_or_octet_stream();
+
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, mime.as_ref())
+            .body(content.data.into())
+            .unwrap();
+    }
+
+    // If not found, try to serve index.html for SPA routing
+    if let Some(content) = Assets::get("index.html") {
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "text/html")
+            .body(content.data.into())
+            .unwrap();
+    }
+
+    // If index.html is also not found, return 404
+    StatusCode::NOT_FOUND.into_response()
 }
