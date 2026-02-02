@@ -87,11 +87,12 @@ pub fn platforms() -> Html {
             let refresh = refresh.clone();
 
             wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(_) = Request::post("/api/platforms")
+                if Request::post("/api/platforms")
                     .json(&request)
                     .unwrap()
                     .send()
                     .await
+                    .is_ok()
                 {
                     show_form.set(false);
                     refresh.set(*refresh + 1);
@@ -105,9 +106,10 @@ pub fn platforms() -> Html {
         Callback::from(move |_| {
             let refresh = refresh.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(_) = Request::delete(&format!("/api/platforms/{}", id))
+                if Request::delete(&format!("/api/platforms/{}", id))
                     .send()
                     .await
+                    .is_ok()
                 {
                     refresh.set(*refresh + 1);
                 }

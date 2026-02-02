@@ -1,7 +1,7 @@
-use crate::{AppState, models::User};
+use crate::{AppState, error::AppError, models::User};
 use axum::{
     extract::{Request, State},
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     middleware::Next,
     response::Response,
 };
@@ -18,7 +18,7 @@ pub async fn auth_middleware(
     headers: HeaderMap,
     mut req: Request,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     // Try to get username from Remote-User header, or use dev default
     let username = if let Some(header_value) = headers.get(REMOTE_USER_HEADER) {
         header_value.to_str().unwrap_or("dev-user").to_string()
@@ -32,7 +32,12 @@ pub async fn auth_middleware(
         .repository
         .get_or_create_user(&username)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            AppError::internal_server_error(
+                "auth::auth_middleware",
+                &format!("Failed to get or create user: {}", e),
+            )
+        })?;
 
     // Insert user into request extensions
     req.extensions_mut().insert(AuthUser { user });

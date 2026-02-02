@@ -1,4 +1,4 @@
-use crate::{AppState, api_key, models::CreateRequestLogRequest};
+use crate::{AppState, api_key, error::AppError, models::CreateRequestLogRequest};
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, Method, StatusCode},
@@ -13,18 +13,23 @@ pub async fn proxy_handler(
     method: Method,
     headers: HeaderMap,
     body: String,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     let start = Instant::now();
 
     // Extract and validate proxy API key from Authorization header
     let auth_header = headers
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+        .ok_or_else(|| {
+            AppError::unauthorized("proxy::proxy_handler", "Missing Authorization header")
+        })?;
 
-    let api_key = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let api_key = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+        AppError::unauthorized(
+            "proxy::proxy_handler",
+            "Authorization header must be in format 'Bearer <token>'",
+        )
+    })?;
 
     let key_hash = api_key::hash_api_key(api_key);
 
@@ -32,13 +37,21 @@ pub async fn proxy_handler(
         .repository
         .get_proxy_api_key_by_hash(&key_hash)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+        .map_err(|e| {
+            AppError::internal_server_error(
+                "proxy::proxy_handler",
+                &format!("Failed to lookup API key: {}", e),
+            )
+        })?
+        .ok_or_else(|| AppError::unauthorized("proxy::proxy_handler", "Invalid API key"))?;
 
     // Get the platform ID from the API key
-    let platform_id = proxy_key
-        .llm_platform_id
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let platform_id = proxy_key.llm_platform_id.ok_or_else(|| {
+        AppError::internal_server_error(
+            "proxy::proxy_handler",
+            "API key is missing platform association",
+        )
+    })?;
 
     // Update last used timestamp
     let _ = state
@@ -51,8 +64,13 @@ pub async fn proxy_handler(
         .repository
         .get_llm_platform(platform_id, proxy_key.user_id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .map_err(|e| {
+            AppError::internal_server_error(
+                "proxy::proxy_handler",
+                &format!("Failed to fetch LLM platform: {}", e),
+            )
+        })?
+        .ok_or_else(|| AppError::not_found("proxy::proxy_handler", "LLM platform"))?;
 
     // Build target URL
     let target_url = format!("{}/{}", platform.base_url.trim_end_matches('/'), path);
@@ -65,25 +83,41 @@ pub async fn proxy_handler(
         Method::PUT => client.put(&target_url),
         Method::DELETE => client.delete(&target_url),
         Method::PATCH => client.patch(&target_url),
-        _ => return Err(StatusCode::METHOD_NOT_ALLOWED),
+        _ => return Err(AppError::method_not_allowed("proxy::proxy_handler")),
     };
+
+    // Build outgoing headers map for logging
+    let mut outgoing_headers_map: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
 
     // Add LLM platform API key
     req_builder = req_builder.header("Authorization", format!("Bearer {}", platform.api_key));
+    outgoing_headers_map.insert(
+        "Authorization".to_string(),
+        format!("Bearer {}", "*".repeat(20)), // Redact actual key in logs
+    );
 
     // Forward relevant headers (excluding our authorization)
     for (key, value) in headers.iter() {
         let key_str = key.as_str();
         if key_str != "authorization" && key_str != "host"
-            && let Ok(value_str) = value.to_str() {
-                req_builder = req_builder.header(key_str, value_str);
-            }
+            && let Ok(value_str) = value.to_str()
+        {
+            req_builder = req_builder.header(key_str, value_str);
+            outgoing_headers_map.insert(key_str.to_string(), value_str.to_string());
+        }
     }
 
     // Add body if present
-    if !body.is_empty() {
+    let outgoing_body = if !body.is_empty() {
         req_builder = req_builder.body(body.clone());
-    }
+        Some(body.clone())
+    } else {
+        None
+    };
+
+    // Serialize outgoing headers for logging
+    let outgoing_headers = serde_json::to_string(&outgoing_headers_map).unwrap_or_default();
 
     // Execute request
     let result = req_builder.send().await;
@@ -120,6 +154,9 @@ pub async fn proxy_handler(
         path: path.clone(),
         request_headers,
         request_body: if body.is_empty() { None } else { Some(body) },
+        outgoing_url: Some(target_url),
+        outgoing_headers: Some(outgoing_headers),
+        outgoing_body,
         response_status,
         response_headers: response_headers.clone(),
         response_body: response_body.clone(),
@@ -134,7 +171,7 @@ pub async fn proxy_handler(
 
     // Return response
     if let Some(err) = error {
-        return Ok((StatusCode::BAD_GATEWAY, err).into_response());
+        return Err(AppError::bad_gateway("proxy::proxy_handler", &err));
     }
 
     let status_code = StatusCode::from_u16(response_status.unwrap() as u16)

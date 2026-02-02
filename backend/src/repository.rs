@@ -173,8 +173,9 @@ impl Repository {
         let result = sqlx::query(
             r#"INSERT INTO request_logs 
             (user_id, proxy_api_key_id, llm_platform_id, method, path, request_headers, request_body, 
+             outgoing_url, outgoing_headers, outgoing_body,
              response_status, response_headers, response_body, duration_ms, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
         )
         .bind(req.user_id)
         .bind(req.proxy_api_key_id)
@@ -183,6 +184,9 @@ impl Repository {
         .bind(&req.path)
         .bind(&req.request_headers)
         .bind(&req.request_body)
+        .bind(&req.outgoing_url)
+        .bind(&req.outgoing_headers)
+        .bind(&req.outgoing_body)
         .bind(req.response_status)
         .bind(&req.response_headers)
         .bind(&req.response_body)

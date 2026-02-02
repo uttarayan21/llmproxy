@@ -139,7 +139,7 @@ pub fn api_keys() -> Html {
         Callback::from(move |_| {
             let refresh = refresh.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(_) = Request::delete(&format!("/api/keys/{}", id)).send().await {
+                if Request::delete(&format!("/api/keys/{}", id)).send().await.is_ok() {
                     refresh.set(*refresh + 1);
                 }
             });

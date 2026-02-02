@@ -84,12 +84,14 @@ use serde::{Deserialize, Serialize};
 
 - Use `Option<T>` for nullable fields (especially database columns)
 - Repository layer: Return `anyhow::Result<T>`
-- Handler layer: Return `Result<Json<T>, StatusCode>` or `Result<StatusCode, StatusCode>`
+- Handler layer: Return `Result<Json<T>, AppError>` or `Result<StatusCode, AppError>`
 - Always derive traits in this order: `#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]`
 
 ### Error Handling
 
-**Repository Pattern**:
+The codebase uses a structured error type `AppError` that implements `axum::response::IntoResponse`. This provides rich error information including location, error type, message, and HTTP status code.
+
+**Repository Pattern** (return anyhow::Result):
 ```rust
 pub async fn create_user(&self, username: &str) -> Result<User> {
     let result = sqlx::query("INSERT INTO users (username) VALUES (?)")
@@ -100,19 +102,56 @@ pub async fn create_user(&self, username: &str) -> Result<User> {
 }
 ```
 
-**Handler Pattern** (map all errors to HTTP status codes):
+**Handler Pattern** (use AppError for structured error responses):
 ```rust
+use crate::error::AppError;
+
 pub async fn create_platform(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
     Json(req): Json<CreateRequest>,
-) -> Result<Json<Platform>, StatusCode> {
+) -> Result<Json<Platform>, AppError> {
     let platform = state
         .repository
         .create_platform(auth_user.user.id, req)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            AppError::internal_server_error(
+                "handlers::create_platform",
+                &format!("Failed to create platform: {}", e),
+            )
+        })?;
     Ok(Json(platform))
+}
+```
+
+**AppError Convenience Constructors**:
+```rust
+// 500 Internal Server Error
+AppError::internal_server_error("location", "error message")
+
+// 404 Not Found
+AppError::not_found("location", "Resource name")
+
+// 401 Unauthorized
+AppError::unauthorized("location", "auth failed message")
+
+// 400 Bad Request
+AppError::bad_request("location", "validation error")
+
+// 502 Bad Gateway
+AppError::bad_gateway("location", "upstream error")
+
+// 405 Method Not Allowed
+AppError::method_not_allowed("location")
+```
+
+**Error Response Format** (JSON):
+```json
+{
+  "location": "handlers::create_platform",
+  "error": "Internal Server Error",
+  "message": "Failed to create platform: database connection error"
 }
 ```
 

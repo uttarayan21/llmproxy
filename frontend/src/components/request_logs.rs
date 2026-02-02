@@ -12,6 +12,9 @@ pub struct RequestLog {
     pub path: String,
     pub request_headers: String,
     pub request_body: Option<String>,
+    pub outgoing_url: Option<String>,
+    pub outgoing_headers: Option<String>,
+    pub outgoing_body: Option<String>,
     pub response_status: Option<i32>,
     pub response_headers: Option<String>,
     pub response_body: Option<String>,
@@ -175,7 +178,7 @@ pub fn request_logs() -> Html {
                                             </div>
 
                                             <div class="detail-section">
-                                                <h4>{ "Request" }</h4>
+                                                <h4>{ "Incoming Request (from user)" }</h4>
                                                 <div class="detail-item">
                                                     <strong>{ "Method:" }</strong>
                                                     <span>{ &log.method }</span>
@@ -198,8 +201,49 @@ pub fn request_logs() -> Html {
                                                 }
                                             </div>
 
+                                            // Outgoing request section
                                             <div class="detail-section">
-                                                <h4>{ "Response" }</h4>
+                                                <h4>{ "Outgoing Request (to LLM platform)" }</h4>
+                                                {
+                                                    if let Some(url) = &log.outgoing_url {
+                                                        html! {
+                                                            <div class="detail-item">
+                                                                <strong>{ "URL:" }</strong>
+                                                                <span>{ url }</span>
+                                                            </div>
+                                                        }
+                                                    } else {
+                                                        html! {}
+                                                    }
+                                                }
+                                                {
+                                                    if let Some(headers) = &log.outgoing_headers {
+                                                        html! {
+                                                            <div class="detail-item">
+                                                                <strong>{ "Headers:" }</strong>
+                                                                <pre>{ headers }</pre>
+                                                            </div>
+                                                        }
+                                                    } else {
+                                                        html! {}
+                                                    }
+                                                }
+                                                {
+                                                    if let Some(body) = &log.outgoing_body {
+                                                        html! {
+                                                            <div class="detail-item">
+                                                                <strong>{ "Body:" }</strong>
+                                                                <pre>{ body }</pre>
+                                                            </div>
+                                                        }
+                                                    } else {
+                                                        html! {}
+                                                    }
+                                                }
+                                            </div>
+
+                                            <div class="detail-section">
+                                                <h4>{ "Response (from LLM platform)" }</h4>
                                                 {
                                                     if let Some(status) = log.response_status {
                                                         html! {
