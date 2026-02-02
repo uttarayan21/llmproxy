@@ -1,0 +1,930 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "LLMPROXY API",
+    "description": "Observability platform for LLM APIs - monitors and logs requests/responses between your application and LLM platforms like OpenAI, Ollama, etc.",
+    "version": "0.1.0",
+    "contact": {
+      "name": "LLMPROXY",
+      "url": "https://github.com/yourusername/llmproxy"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development server"
+    },
+    {
+      "url": "https://llmproxy.example.com",
+      "description": "Production server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "User",
+      "description": "User management operations"
+    },
+    {
+      "name": "Platforms",
+      "description": "LLM platform configuration management"
+    },
+    {
+      "name": "API Keys",
+      "description": "Proxy API key management"
+    },
+    {
+      "name": "Logs",
+      "description": "Request/response log operations"
+    },
+    {
+      "name": "Proxy",
+      "description": "LLM request proxying"
+    }
+  ],
+  "paths": {
+    "/api/user": {
+      "get": {
+        "tags": ["User"],
+        "summary": "Get current authenticated user",
+        "description": "Returns the currently authenticated user based on the Remote-User header",
+        "operationId": "getCurrentUser",
+        "security": [
+          {
+            "remoteUserHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/platforms": {
+      "get": {
+        "tags": ["Platforms"],
+        "summary": "List all LLM platforms",
+        "description": "Returns all LLM platforms configured by the authenticated user",
+        "operationId": "getLlmPlatforms",
+        "security": [
+          {
+            "remoteUserHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of LLM platforms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LlmPlatform"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Platforms"],
+        "summary": "Create a new LLM platform",
+        "description": "Adds a new LLM platform configuration (OpenAI, Ollama, etc.)",
+        "operationId": "createLlmPlatform",
+        "security": [
+          {
+            "remoteUserHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLlmPlatformRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Platform created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmPlatform"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/platforms/{id}": {
+      "delete": {
+        "tags": ["Platforms"],
+        "summary": "Delete an LLM platform",
+        "description": "Removes an LLM platform configuration",
+        "operationId": "deleteLlmPlatform",
+        "security": [
+          {
+            "remoteUserHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Platform ID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Platform deleted successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/keys": {
+      "get": {
+        "tags": ["API Keys"],
+        "summary": "List all proxy API keys",
+        "description": "Returns all proxy API keys for the authenticated user",
+        "operationId": "getProxyApiKeys",
+        "security": [
+          {
+            "remoteUserHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of proxy API keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProxyApiKey"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["API Keys"],
+        "summary": "Generate a new proxy API key",
+        "description": "Creates a new API key for accessing the proxy. The full key is only shown once.",
+        "operationId": "createProxyApiKey",
+        "security": [
+          {
+            "remoteUserHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProxyApiKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "API key created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProxyApiKeyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/keys/{id}": {
+      "delete": {
+        "tags": ["API Keys"],
+        "summary": "Revoke a proxy API key",
+        "description": "Deletes a proxy API key, preventing further use",
+        "operationId": "deleteProxyApiKey",
+        "security": [
+          {
+            "remoteUserHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "API Key ID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "API key revoked successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/logs": {
+      "get": {
+        "tags": ["Logs"],
+        "summary": "List request logs",
+        "description": "Returns recent request/response logs for the authenticated user",
+        "operationId": "getRequestLogs",
+        "security": [
+          {
+            "remoteUserHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of logs to return (default: 100)",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of request logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RequestLog"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/logs/{id}": {
+      "get": {
+        "tags": ["Logs"],
+        "summary": "Get a specific request log",
+        "description": "Returns detailed information about a single request/response log",
+        "operationId": "getRequestLog",
+        "security": [
+          {
+            "remoteUserHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Log ID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request log details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestLog"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/proxy/{platform_id}/{path}": {
+      "get": {
+        "tags": ["Proxy"],
+        "summary": "Proxy GET request to LLM platform",
+        "description": "Forwards a GET request to the configured LLM platform and logs the interaction",
+        "operationId": "proxyGet",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "platform_id",
+            "in": "path",
+            "required": true,
+            "description": "LLM Platform ID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "description": "API path to forward to (e.g., 'chat/completions')",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response from LLM platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Response varies by LLM platform and endpoint"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "description": "Bad Gateway - Error forwarding to LLM platform"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Proxy"],
+        "summary": "Proxy POST request to LLM platform",
+        "description": "Forwards a POST request to the configured LLM platform and logs the interaction",
+        "operationId": "proxyPost",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "platform_id",
+            "in": "path",
+            "required": true,
+            "description": "LLM Platform ID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "description": "API path to forward to (e.g., 'chat/completions')",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Request body varies by LLM platform and endpoint"
+              },
+              "example": {
+                "model": "gpt-4",
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "Hello!"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response from LLM platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Response varies by LLM platform and endpoint"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "description": "Bad Gateway - Error forwarding to LLM platform"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Proxy"],
+        "summary": "Proxy PUT request to LLM platform",
+        "operationId": "proxyPut",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "platform_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response from LLM platform"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Proxy"],
+        "summary": "Proxy DELETE request to LLM platform",
+        "operationId": "proxyDelete",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "platform_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response from LLM platform"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Proxy"],
+        "summary": "Proxy PATCH request to LLM platform",
+        "operationId": "proxyPatch",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "platform_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response from LLM platform"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "remoteUserHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Remote-User",
+        "description": "Username header set by reverse proxy for UI authentication"
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Proxy API Key",
+        "description": "Proxy API key generated via /api/keys endpoint (format: llmp_xxxxx)"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "required": ["id", "username", "created_at", "updated_at"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "john.doe"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-02-02T10:30:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-02-02T10:30:00Z"
+          }
+        }
+      },
+      "LlmPlatform": {
+        "type": "object",
+        "required": ["id", "user_id", "name", "base_url", "platform_type", "created_at", "updated_at"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "OpenAI Production"
+          },
+          "base_url": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://api.openai.com/v1"
+          },
+          "platform_type": {
+            "type": "string",
+            "enum": ["openai", "ollama", "custom"],
+            "example": "openai"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-02-02T10:30:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-02-02T10:30:00Z"
+          }
+        },
+        "description": "LLM platform configuration (API key not included in response for security)"
+      },
+      "CreateLlmPlatformRequest": {
+        "type": "object",
+        "required": ["name", "base_url", "api_key", "platform_type"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "OpenAI Production"
+          },
+          "base_url": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://api.openai.com/v1"
+          },
+          "api_key": {
+            "type": "string",
+            "format": "password",
+            "example": "sk-proj-xxxxxxxxxxxxx"
+          },
+          "platform_type": {
+            "type": "string",
+            "enum": ["openai", "ollama", "custom"],
+            "example": "openai"
+          }
+        }
+      },
+      "ProxyApiKey": {
+        "type": "object",
+        "required": ["id", "user_id", "key_prefix", "name", "created_at"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "key_prefix": {
+            "type": "string",
+            "example": "llmp_abc1234",
+            "description": "First 12 characters of the key for identification"
+          },
+          "name": {
+            "type": "string",
+            "example": "My App Production"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-02-02T10:30:00Z"
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2024-02-02T12:45:00Z"
+          }
+        }
+      },
+      "CreateProxyApiKeyRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "My App Production",
+            "description": "Descriptive name for the API key"
+          }
+        }
+      },
+      "ProxyApiKeyResponse": {
+        "type": "object",
+        "required": ["id", "key", "key_prefix", "name", "created_at"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "key": {
+            "type": "string",
+            "example": "llmp_abc123def456ghi789jkl012mno345",
+            "description": "Full API key - only shown once upon creation!"
+          },
+          "key_prefix": {
+            "type": "string",
+            "example": "llmp_abc1234"
+          },
+          "name": {
+            "type": "string",
+            "example": "My App Production"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-02-02T10:30:00Z"
+          }
+        }
+      },
+      "RequestLog": {
+        "type": "object",
+        "required": ["id", "user_id", "proxy_api_key_id", "llm_platform_id", "method", "path", "request_headers", "created_at"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "proxy_api_key_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "llm_platform_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "method": {
+            "type": "string",
+            "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+            "example": "POST"
+          },
+          "path": {
+            "type": "string",
+            "example": "chat/completions"
+          },
+          "request_headers": {
+            "type": "string",
+            "description": "JSON string of request headers",
+            "example": "{\"content-type\":\"application/json\"}"
+          },
+          "request_body": {
+            "type": "string",
+            "nullable": true,
+            "description": "JSON string of request body",
+            "example": "{\"model\":\"gpt-4\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}"
+          },
+          "response_status": {
+            "type": "integer",
+            "nullable": true,
+            "example": 200
+          },
+          "response_headers": {
+            "type": "string",
+            "nullable": true,
+            "description": "JSON string of response headers"
+          },
+          "response_body": {
+            "type": "string",
+            "nullable": true,
+            "description": "JSON string of response body"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 1523,
+            "description": "Request duration in milliseconds"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Error message if request failed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-02-02T10:30:00Z"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentication required or invalid credentials",
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string",
+              "example": "Unauthorized"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string",
+              "example": "Not Found"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Internal server error",
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string",
+              "example": "Internal Server Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+use crate::{AppState, api_key, models::CreateRequestLogRequest, repository::Repository};
 use axum::{
     body::Body,
     extract::{Path, State},
@@ -6,7 +7,6 @@ use axum::{
 };
 use reqwest;
 use std::time::Instant;
-use crate::{api_key, models::CreateRequestLogRequest, repository::Repository, AppState};
 
 pub async fn proxy_handler(
     State(state): State<AppState>,
@@ -28,7 +28,7 @@ pub async fn proxy_handler(
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
     let key_hash = api_key::hash_api_key(api_key);
-    
+
     let proxy_key = state
         .repository
         .get_proxy_api_key_by_hash(&key_hash)
@@ -37,7 +37,10 @@ pub async fn proxy_handler(
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
     // Update last used timestamp
-    let _ = state.repository.update_proxy_api_key_last_used(proxy_key.id).await;
+    let _ = state
+        .repository
+        .update_proxy_api_key_last_used(proxy_key.id)
+        .await;
 
     // Get LLM platform configuration
     let platform = state
@@ -91,9 +94,7 @@ pub async fn proxy_handler(
             let headers_map: std::collections::HashMap<String, String> = resp
                 .headers()
                 .iter()
-                .filter_map(|(k, v)| {
-                    v.to_str().ok().map(|val| (k.to_string(), val.to_string()))
-                })
+                .filter_map(|(k, v)| v.to_str().ok().map(|val| (k.to_string(), val.to_string())))
                 .collect();
             let headers = serde_json::to_string(&headers_map).unwrap_or_default();
             let body = resp.text().await.unwrap_or_default();
@@ -104,9 +105,7 @@ pub async fn proxy_handler(
 
     let request_headers_map: std::collections::HashMap<String, String> = headers
         .iter()
-        .filter_map(|(k, v)| {
-            v.to_str().ok().map(|val| (k.to_string(), val.to_string()))
-        })
+        .filter_map(|(k, v)| v.to_str().ok().map(|val| (k.to_string(), val.to_string())))
         .collect();
     let request_headers = serde_json::to_string(&request_headers_map).unwrap_or_default();
 

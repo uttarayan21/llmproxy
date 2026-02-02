@@ -1,9 +1,8 @@
 use axum::{
-    middleware,
+    Router, middleware,
     routing::{delete, get, post},
-    Router,
 };
-use backend::{db, handlers, auth, proxy, repository::Repository, AppState};
+use backend::{AppState, auth, db, handlers, proxy, repository::Repository};
 use std::env;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -20,7 +19,8 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     // Get configuration from environment
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:llmproxy.db".to_string());
+    let database_url =
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:llmproxy.db".to_string());
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
 
@@ -48,14 +48,14 @@ async fn main() -> anyhow::Result<()> {
         ));
 
     // Proxy routes (uses API key authentication, not reverse proxy auth)
-    let proxy_routes = Router::new()
-        .route("/proxy/:platform_id/*path", 
-            post(proxy::proxy_handler)
-                .get(proxy::proxy_handler)
-                .put(proxy::proxy_handler)
-                .delete(proxy::proxy_handler)
-                .patch(proxy::proxy_handler)
-        );
+    let proxy_routes = Router::new().route(
+        "/proxy/:platform_id/*path",
+        post(proxy::proxy_handler)
+            .get(proxy::proxy_handler)
+            .put(proxy::proxy_handler)
+            .delete(proxy::proxy_handler)
+            .patch(proxy::proxy_handler),
+    );
 
     // Build application
     let app = Router::new()

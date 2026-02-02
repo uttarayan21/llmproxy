@@ -7,3 +7,4 @@
 *.db-wal
 /frontend/dist
 /frontend/pkg
+*.log

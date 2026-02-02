@@ -1,7 +1,7 @@
-use yew::prelude::*;
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
 use web_sys::HtmlInputElement;
+use yew::prelude::*;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct ProxyApiKey {
@@ -71,7 +71,7 @@ pub fn api_keys() -> Html {
 
         Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
-            
+
             let name = name_ref.cast::<HtmlInputElement>().unwrap().value();
 
             let request = CreateApiKeyRequest { name };
@@ -102,10 +102,7 @@ pub fn api_keys() -> Html {
         Callback::from(move |_| {
             let refresh = refresh.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(_) = Request::delete(&format!("/api/keys/{}", id))
-                    .send()
-                    .await
-                {
+                if let Ok(_) = Request::delete(&format!("/api/keys/{}", id)).send().await {
                     refresh.set(*refresh + 1);
                 }
             });

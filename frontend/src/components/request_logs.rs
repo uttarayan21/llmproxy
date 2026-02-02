@@ -1,6 +1,6 @@
-use yew::prelude::*;
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
+use yew::prelude::*;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct RequestLog {
@@ -59,7 +59,7 @@ pub fn request_logs() -> Html {
     html! {
         <div class="request-logs">
             <h2>{ "Request Logs" }</h2>
-            
+
             {
                 if *loading {
                     html! { <div class="loading">{ "Loading logs..." }</div> }
@@ -104,7 +104,7 @@ pub fn request_logs() -> Html {
                                     }).collect::<Html>()
                                 }
                             </div>
-                            
+
                             {
                                 if let Some(log) = (*selected_log).as_ref() {
                                     html! {
@@ -113,7 +113,7 @@ pub fn request_logs() -> Html {
                                                 <h3>{ "Request Details" }</h3>
                                                 <button onclick={on_close_detail}>{ "Close" }</button>
                                             </div>
-                                            
+
                                             <div class="detail-section">
                                                 <h4>{ "Request" }</h4>
                                                 <div class="detail-item">

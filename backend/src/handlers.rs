@@ -1,12 +1,10 @@
+use crate::{AppState, api_key, auth::AuthUser, models::*, repository::Repository};
 use axum::{
-    extract::{Path, Query, State, Extension},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
 use serde::{Deserialize, Serialize};
-use crate::{
-    api_key, auth::AuthUser, models::*, repository::Repository, AppState,
-};
 
 // LLM Platform handlers
 pub async fn create_llm_platform(
@@ -151,8 +149,6 @@ pub async fn get_request_log(
 }
 
 // User handler
-pub async fn get_current_user(
-    Extension(auth_user): Extension<AuthUser>,
-) -> Json<User> {
+pub async fn get_current_user(Extension(auth_user): Extension<AuthUser>) -> Json<User> {
     Json(auth_user.user)
 }

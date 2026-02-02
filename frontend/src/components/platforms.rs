@@ -1,7 +1,7 @@
-use yew::prelude::*;
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
 use web_sys::HtmlInputElement;
+use yew::prelude::*;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct LlmPlatform {
@@ -68,11 +68,14 @@ pub fn platforms() -> Html {
 
         Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
-            
+
             let name = name_ref.cast::<HtmlInputElement>().unwrap().value();
             let base_url = base_url_ref.cast::<HtmlInputElement>().unwrap().value();
             let api_key = api_key_ref.cast::<HtmlInputElement>().unwrap().value();
-            let platform_type = platform_type_ref.cast::<HtmlInputElement>().unwrap().value();
+            let platform_type = platform_type_ref
+                .cast::<HtmlInputElement>()
+                .unwrap()
+                .value();
 
             let request = CreatePlatformRequest {
                 name,

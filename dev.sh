@@ -38,7 +38,7 @@ trunk build
 
 cd ..
 
-caddy dev --config Caddyfile
+caddy run
 
 # Cleanup on exit
 trap "echo '🛑 Stopping backend...'; kill $BACKEND_PID 2>/dev/null" EXIT

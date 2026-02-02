@@ -1,10 +1,10 @@
+use crate::{AppState, models::User, repository::Repository};
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode},
     middleware::Next,
     response::Response,
 };
-use crate::{repository::Repository, models::User, AppState};
 
 pub const REMOTE_USER_HEADER: &str = "Remote-User";
 

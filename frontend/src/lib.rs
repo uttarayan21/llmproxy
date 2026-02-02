@@ -1,14 +1,10 @@
-use yew::prelude::*;
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use yew::prelude::*;
 
 mod components;
-use components::{
-    request_logs::RequestLogs,
-    platforms::Platforms,
-    api_keys::ApiKeys,
-};
+use components::{api_keys::ApiKeys, platforms::Platforms, request_logs::RequestLogs};
 
 #[derive(Clone, PartialEq)]
 enum Page {
