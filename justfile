@@ -15,6 +15,8 @@ export PORT := "8080"
 build:
     @echo "🔨 Building backend..."
     cd backend && cargo build --release
+    @echo "🎨 Building frontend with Trunk..."
+    cd frontend && trunk build --release
     @echo "✅ Build complete!"
 
 # Build for development (debug mode)
@@ -24,10 +26,10 @@ build-dev:
     @echo "✅ Build complete!"
 
 # Run the backend server (production mode)
-run:
+run: build
     @echo "🚀 Starting LLMPROXY backend..."
     @echo "📝 Access at: http://127.0.0.1:8080"
-    cd backend && cargo run --release
+    cargo run --release
 
 # Run the backend server (development mode with auto-reload)
 dev:

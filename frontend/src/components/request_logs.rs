@@ -20,20 +20,39 @@ pub struct RequestLog {
     pub created_at: String,
 }
 
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+pub struct LlmPlatform {
+    pub id: i64,
+    pub user_id: i64,
+    pub name: String,
+    pub base_url: String,
+    pub platform_type: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 #[function_component(RequestLogs)]
 pub fn request_logs() -> Html {
     let logs = use_state(Vec::<RequestLog>::new);
+    let platforms = use_state(Vec::<LlmPlatform>::new);
     let selected_log = use_state(|| Option::<RequestLog>::None);
     let loading = use_state(|| true);
 
     {
         let logs = logs.clone();
+        let platforms = platforms.clone();
         let loading = loading.clone();
         use_effect_with((), move |_| {
             wasm_bindgen_futures::spawn_local(async move {
+                // Fetch logs
                 if let Ok(response) = Request::get("/api/logs?limit=50").send().await
                     && let Ok(data) = response.json::<Vec<RequestLog>>().await {
                         logs.set(data);
+                    }
+                // Fetch platforms
+                if let Ok(response) = Request::get("/api/platforms").send().await
+                    && let Ok(data) = response.json::<Vec<LlmPlatform>>().await {
+                        platforms.set(data);
                     }
                 loading.set(false);
             });
@@ -72,6 +91,11 @@ pub fn request_logs() -> Html {
                                     logs.iter().map(|log| {
                                         let log_clone = log.clone();
                                         let on_select = on_select_log.clone();
+                                        let platform_name = platforms.iter()
+                                            .find(|p| p.id == log.llm_platform_id)
+                                            .map(|p| p.name.clone())
+                                            .unwrap_or_else(|| "Unknown".to_string());
+                                        
                                         html! {
                                             <div
                                                 class="log-item"
@@ -89,6 +113,7 @@ pub fn request_logs() -> Html {
                                                     }
                                                 </div>
                                                 <div class="log-meta">
+                                                    <span class="platform">{ format!("Platform: {}", platform_name) }</span>
                                                     {
                                                         if let Some(duration) = log.duration_ms {
                                                             html! { <span class="duration">{ format!("{}ms", duration) }</span> }
@@ -106,11 +131,47 @@ pub fn request_logs() -> Html {
 
                             {
                                 if let Some(log) = (*selected_log).as_ref() {
+                                    let platform = platforms.iter()
+                                        .find(|p| p.id == log.llm_platform_id)
+                                        .cloned();
+                                    
                                     html! {
                                         <div class="log-detail">
                                             <div class="detail-header">
                                                 <h3>{ "Request Details" }</h3>
                                                 <button onclick={on_close_detail}>{ "Close" }</button>
+                                            </div>
+
+                                            // Platform info section
+                                            <div class="detail-section platform-section">
+                                                <h4>{ "Platform" }</h4>
+                                                {
+                                                    if let Some(p) = platform {
+                                                        html! {
+                                                            <>
+                                                                <div class="detail-item">
+                                                                    <strong>{ "Name:" }</strong>
+                                                                    <span>{ &p.name }</span>
+                                                                </div>
+                                                                <div class="detail-item">
+                                                                    <strong>{ "Type:" }</strong>
+                                                                    <span>{ &p.platform_type }</span>
+                                                                </div>
+                                                                <div class="detail-item">
+                                                                    <strong>{ "Base URL:" }</strong>
+                                                                    <span>{ &p.base_url }</span>
+                                                                </div>
+                                                            </>
+                                                        }
+                                                    } else {
+                                                        html! {
+                                                            <div class="detail-item">
+                                                                <strong>{ "Platform ID:" }</strong>
+                                                                <span>{ log.llm_platform_id }</span>
+                                                            </div>
+                                                        }
+                                                    }
+                                                }
                                             </div>
 
                                             <div class="detail-section">
