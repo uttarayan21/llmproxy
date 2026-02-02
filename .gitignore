@@ -1,0 +1,9 @@
+/result
+/target
+.direnv
+.env
+*.db
+*.db-shm
+*.db-wal
+/frontend/dist
+/frontend/pkg
