@@ -150,18 +150,18 @@ pub fn request_logs() -> Html {
     };
 
     html! {
-        <div class="request-logs">
-            <h2>{ "Request Logs" }</h2>
+        <div>
+            <h2 class="text-2xl text-dark mb-6">{ "Request Logs" }</h2>
 
             {
                 if *loading {
-                    html! { <div class="loading">{ "Loading logs..." }</div> }
+                    html! { <div class="text-center p-12 text-gray-600">{ "Loading logs..." }</div> }
                 } else if logs.is_empty() {
-                    html! { <div class="empty">{ "No request logs yet" }</div> }
+                    html! { <div class="text-center p-12 text-gray-600">{ "No request logs yet" }</div> }
                 } else {
                     html! {
-                        <div class="logs-container">
-                            <div class="logs-list">
+                        <div class="grid grid-cols-2 gap-6">
+                            <div class="bg-white rounded-lg overflow-hidden shadow-md max-h-[80vh] overflow-y-auto">
                                 {
                                     logs.iter().map(|log| {
                                         let log_clone = log.clone();
@@ -173,30 +173,43 @@ pub fn request_logs() -> Html {
 
                                         html! {
                                             <div
-                                                class="log-item"
+                                                class="p-4 border-b border-gray-100 cursor-pointer transition hover:bg-gray-50"
                                                 onclick={Callback::from(move |_| on_select.emit(log_clone.clone()))}
                                             >
-                                                <div class="log-header">
-                                                    <span class="method">{ &log.method }</span>
-                                                    <span class="path">{ &log.path }</span>
+                                                <div class="flex gap-2 items-center mb-2">
+                                                    <span class="font-semibold text-primary text-sm">{ &log.method }</span>
+                                                    <span class="flex-1 text-gray-700 text-sm">{ &log.path }</span>
                                                     {
                                                         if let Some(status) = log.response_status {
-                                                            html! { <span class={format!("status status-{}", status / 100)}>{ status }</span> }
+                                                            let status_class = match status / 100 {
+                                                                2 => "bg-green-100 text-green-800",
+                                                                4 | 5 => "bg-red-100 text-red-800",
+                                                                _ => "bg-gray-100 text-gray-800",
+                                                            };
+                                                            html! {
+                                                                <span class={format!("px-2 py-1 rounded text-xs font-semibold {}", status_class)}>
+                                                                    { status }
+                                                                </span>
+                                                            }
                                                         } else {
-                                                            html! { <span class="status status-error">{ "Error" }</span> }
+                                                            html! {
+                                                                <span class="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800">
+                                                                    { "Error" }
+                                                                </span>
+                                                            }
                                                         }
                                                     }
                                                 </div>
-                                                <div class="log-meta">
-                                                    <span class="platform">{ format!("Platform: {}", platform_name) }</span>
+                                                <div class="flex gap-4 text-xs text-gray-500">
+                                                    <span>{ format!("Platform: {}", platform_name) }</span>
                                                     {
                                                         if let Some(duration) = log.duration_ms {
-                                                            html! { <span class="duration">{ format!("{}ms", duration) }</span> }
+                                                            html! { <span>{ format!("{}ms", duration) }</span> }
                                                         } else {
                                                             html! {}
                                                         }
                                                     }
-                                                    <span class="timestamp">{ &log.created_at }</span>
+                                                    <span>{ &log.created_at }</span>
                                                 </div>
                                             </div>
                                         }
@@ -234,37 +247,42 @@ pub fn request_logs() -> Html {
                                     };
 
                                     html! {
-                                        <div class="log-detail">
-                                            <div class="detail-header">
-                                                <h3>{ "Request Details" }</h3>
-                                                <button onclick={on_close_detail}>{ "Close" }</button>
+                                        <div class="bg-white rounded-lg p-6 shadow-md max-h-[80vh] overflow-y-auto">
+                                            <div class="flex justify-between items-center mb-6">
+                                                <h3 class="text-dark">{ "Request Details" }</h3>
+                                                <button
+                                                    onclick={on_close_detail}
+                                                    class="bg-primary text-white px-4 py-2 border-none rounded cursor-pointer text-sm transition hover:bg-primary-dark"
+                                                >
+                                                    { "Close" }
+                                                </button>
                                             </div>
 
                                             // Platform info section
-                                            <div class="detail-section platform-section">
-                                                <h4>{ "Platform" }</h4>
+                                            <div class="mb-6 pb-6 border-b border-gray-100">
+                                                <h4 class="text-gray-700 mb-4">{ "Platform" }</h4>
                                                 {
                                                     if let Some(p) = platform {
                                                         html! {
                                                             <>
-                                                                <div class="detail-item">
-                                                                    <strong>{ "Name:" }</strong>
+                                                                <div class="mb-4">
+                                                                    <strong class="inline-block min-w-[100px] text-gray-600">{ "Name:" }</strong>
                                                                     <span>{ &p.name }</span>
                                                                 </div>
-                                                                <div class="detail-item">
-                                                                    <strong>{ "Type:" }</strong>
+                                                                <div class="mb-4">
+                                                                    <strong class="inline-block min-w-[100px] text-gray-600">{ "Type:" }</strong>
                                                                     <span>{ &p.platform_type }</span>
                                                                 </div>
-                                                                <div class="detail-item">
-                                                                    <strong>{ "Base URL:" }</strong>
+                                                                <div class="mb-4">
+                                                                    <strong class="inline-block min-w-[100px] text-gray-600">{ "Base URL:" }</strong>
                                                                     <span>{ &p.base_url }</span>
                                                                 </div>
                                                             </>
                                                         }
                                                     } else {
                                                         html! {
-                                                            <div class="detail-item">
-                                                                <strong>{ "Platform ID:" }</strong>
+                                                            <div class="mb-4">
+                                                                <strong class="inline-block min-w-[100px] text-gray-600">{ "Platform ID:" }</strong>
                                                                 <span>{ log.llm_platform_id }</span>
                                                             </div>
                                                         }
@@ -272,28 +290,33 @@ pub fn request_logs() -> Html {
                                                 }
                                             </div>
 
-                                            <div class="detail-section">
-                                                <div class="section-header-with-button">
-                                                    <h4>{ "Incoming Request (from user)" }</h4>
-                                                    <button class="btn-copy" onclick={on_copy_incoming}>
+                                            <div class="mb-6 pb-6 border-b border-gray-100">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h4 class="text-gray-700">{ "Incoming Request (from user)" }</h4>
+                                                    <button
+                                                        class="bg-primary text-white px-3 py-2 text-xs ml-2 border-none rounded cursor-pointer transition hover:bg-primary-dark"
+                                                        onclick={on_copy_incoming}
+                                                    >
                                                         { "Copy as curl" }
                                                     </button>
                                                 </div>
-                                                <div class="detail-item">
-                                                    <strong>{ "Method:" }</strong>
+                                                <div class="mb-4">
+                                                    <strong class="inline-block min-w-[100px] text-gray-600">{ "Method:" }</strong>
                                                     <span>{ &log.method }</span>
                                                 </div>
-                                                <div class="detail-item">
-                                                    <strong>{ "Path:" }</strong>
+                                                <div class="mb-4">
+                                                    <strong class="inline-block min-w-[100px] text-gray-600">{ "Path:" }</strong>
                                                     <span>{ &log.path }</span>
                                                 </div>
                                                 {
                                                     if let Some(body) = &log.request_body {
                                                         let pretty_body = prettify_json(body);
                                                         html! {
-                                                            <div class="detail-item">
-                                                                <strong>{ "Body:" }</strong>
-                                                                <pre class="json-body">{ pretty_body }</pre>
+                                                            <div class="mb-4">
+                                                                <strong class="inline-block min-w-[100px] text-gray-600">{ "Body:" }</strong>
+                                                                <pre class="mt-2 p-4 bg-gray-50 rounded overflow-x-auto text-xs whitespace-pre-wrap font-mono leading-normal">
+                                                                    { pretty_body }
+                                                                </pre>
                                                             </div>
                                                         }
                                                     } else {
@@ -303,13 +326,16 @@ pub fn request_logs() -> Html {
                                             </div>
 
                                             // Outgoing request section
-                                            <div class="detail-section">
-                                                <div class="section-header-with-button">
-                                                    <h4>{ "Outgoing Request (to LLM platform)" }</h4>
+                                            <div class="mb-6 pb-6 border-b border-gray-100">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h4 class="text-gray-700">{ "Outgoing Request (to LLM platform)" }</h4>
                                                     {
                                                         if outgoing_curl.is_some() {
                                                             html! {
-                                                                <button class="btn-copy" onclick={on_copy_outgoing}>
+                                                                <button
+                                                                    class="bg-primary text-white px-3 py-2 text-xs ml-2 border-none rounded cursor-pointer transition hover:bg-primary-dark"
+                                                                    onclick={on_copy_outgoing}
+                                                                >
                                                                     { "Copy as curl" }
                                                                 </button>
                                                             }
@@ -321,8 +347,8 @@ pub fn request_logs() -> Html {
                                                 {
                                                     if let Some(url) = &log.outgoing_url {
                                                         html! {
-                                                            <div class="detail-item">
-                                                                <strong>{ "URL:" }</strong>
+                                                            <div class="mb-4">
+                                                                <strong class="inline-block min-w-[100px] text-gray-600">{ "URL:" }</strong>
                                                                 <span>{ url }</span>
                                                             </div>
                                                         }
@@ -333,9 +359,11 @@ pub fn request_logs() -> Html {
                                                 {
                                                     if let Some(headers) = &log.outgoing_headers {
                                                         html! {
-                                                            <div class="detail-item">
-                                                                <strong>{ "Headers:" }</strong>
-                                                                <pre>{ headers }</pre>
+                                                            <div class="mb-4">
+                                                                <strong class="inline-block min-w-[100px] text-gray-600">{ "Headers:" }</strong>
+                                                                <pre class="mt-2 p-4 bg-gray-50 rounded overflow-x-auto text-xs">
+                                                                    { headers }
+                                                                </pre>
                                                             </div>
                                                         }
                                                     } else {
@@ -346,9 +374,11 @@ pub fn request_logs() -> Html {
                                                     if let Some(body) = &log.outgoing_body {
                                                         let pretty_body = prettify_json(body);
                                                         html! {
-                                                            <div class="detail-item">
-                                                                <strong>{ "Body:" }</strong>
-                                                                <pre class="json-body">{ pretty_body }</pre>
+                                                            <div class="mb-4">
+                                                                <strong class="inline-block min-w-[100px] text-gray-600">{ "Body:" }</strong>
+                                                                <pre class="mt-2 p-4 bg-gray-50 rounded overflow-x-auto text-xs whitespace-pre-wrap font-mono leading-normal">
+                                                                    { pretty_body }
+                                                                </pre>
                                                             </div>
                                                         }
                                                     } else {
@@ -357,13 +387,13 @@ pub fn request_logs() -> Html {
                                                 }
                                             </div>
 
-                                            <div class="detail-section">
-                                                <h4>{ "Response (from LLM platform)" }</h4>
+                                            <div class="mb-6 pb-6 border-b-0">
+                                                <h4 class="text-gray-700 mb-4">{ "Response (from LLM platform)" }</h4>
                                                 {
                                                     if let Some(status) = log.response_status {
                                                         html! {
-                                                            <div class="detail-item">
-                                                                <strong>{ "Status:" }</strong>
+                                                            <div class="mb-4">
+                                                                <strong class="inline-block min-w-[100px] text-gray-600">{ "Status:" }</strong>
                                                                 <span>{ status }</span>
                                                             </div>
                                                         }
@@ -375,9 +405,11 @@ pub fn request_logs() -> Html {
                                                     if let Some(body) = &log.response_body {
                                                         let pretty_body = prettify_json(body);
                                                         html! {
-                                                            <div class="detail-item">
-                                                                <strong>{ "Body:" }</strong>
-                                                                <pre class="json-body">{ pretty_body }</pre>
+                                                            <div class="mb-4">
+                                                                <strong class="inline-block min-w-[100px] text-gray-600">{ "Body:" }</strong>
+                                                                <pre class="mt-2 p-4 bg-gray-50 rounded overflow-x-auto text-xs whitespace-pre-wrap font-mono leading-normal">
+                                                                    { pretty_body }
+                                                                </pre>
                                                             </div>
                                                         }
                                                     } else {
@@ -387,8 +419,8 @@ pub fn request_logs() -> Html {
                                                 {
                                                     if let Some(error) = &log.error {
                                                         html! {
-                                                            <div class="detail-item error">
-                                                                <strong>{ "Error:" }</strong>
+                                                            <div class="mb-4 text-danger">
+                                                                <strong class="inline-block min-w-[100px]">{ "Error:" }</strong>
                                                                 <span>{ error }</span>
                                                             </div>
                                                         }
@@ -401,7 +433,7 @@ pub fn request_logs() -> Html {
                                     }
                                 } else {
                                     html! {
-                                        <div class="log-detail-placeholder">
+                                        <div class="bg-white rounded-lg p-6 shadow-md max-h-[80vh] overflow-y-auto flex items-center justify-center text-gray-500">
                                             <p>{ "Select a log to view details" }</p>
                                         </div>
                                     }

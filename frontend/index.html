@@ -4,7 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LLMPROXY - Observability Platform</title>
-    <link data-trunk rel="css" href="styles.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#3498db',
+                            dark: '#2980b9',
+                        },
+                        danger: {
+                            DEFAULT: '#e74c3c',
+                            dark: '#c0392b',
+                        },
+                        dark: '#2c3e50',
+                    },
+                }
+            }
+        }
+    </script>
 </head>
 <body></body>
 </html>

@@ -161,10 +161,13 @@ pub fn api_keys() -> Html {
     };
 
     html! {
-        <div class="api-keys">
-            <div class="header-row">
-                <h2>{ "Proxy API Keys" }</h2>
-                <button class="btn-primary" onclick={on_toggle_form}>
+        <div>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl text-dark">{ "Proxy API Keys" }</h2>
+                <button
+                    class="bg-primary text-white px-4 py-2 border-none rounded cursor-pointer text-sm transition hover:bg-primary-dark"
+                    onclick={on_toggle_form}
+                >
                     { if *show_form { "Cancel" } else { "Generate Key" } }
                 </button>
             </div>
@@ -172,21 +175,26 @@ pub fn api_keys() -> Html {
             {
                 if let Some(key) = (*new_key).as_ref() {
                     html! {
-                        <div class="key-display">
-                            <div class="key-display-header">
-                                <h3>{ "New API Key Generated" }</h3>
-                                <button onclick={on_close_key_display}>{ "Close" }</button>
+                        <div class="bg-amber-50 border-2 border-amber-400 rounded-lg p-6 mb-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-dark">{ "New API Key Generated" }</h3>
+                                <button
+                                    onclick={on_close_key_display}
+                                    class="bg-primary text-white px-4 py-2 border-none rounded cursor-pointer text-sm transition hover:bg-primary-dark"
+                                >
+                                    { "Close" }
+                                </button>
                             </div>
-                            <div class="key-warning">
+                            <div class="text-amber-800 mb-4 px-3 py-3 bg-white rounded">
                                 <strong>{ "Important:" }</strong>
                                 { " Copy this key now. You won't be able to see it again!" }
                             </div>
-                            <div class="key-value">
-                                <code>{ &key.key }</code>
+                            <div class="bg-dark text-white p-4 rounded mb-4 overflow-x-auto">
+                                <code class="font-mono text-sm">{ &key.key }</code>
                             </div>
-                            <div class="key-info">
-                                <div><strong>{ "Name:" }</strong> { &key.name }</div>
-                                <div><strong>{ "Prefix:" }</strong> { &key.key_prefix }</div>
+                            <div>
+                                <div><strong>{ "Name:" }</strong> { " " }{ &key.name }</div>
+                                <div><strong>{ "Prefix:" }</strong> { " " }{ &key.key_prefix }</div>
                             </div>
                         </div>
                     }
@@ -198,14 +206,24 @@ pub fn api_keys() -> Html {
             {
                 if *show_form {
                     html! {
-                        <form class="api-key-form" onsubmit={on_submit}>
-                            <div class="form-group">
-                                <label>{ "Key Name:" }</label>
-                                <input type="text" ref={name_ref.clone()} placeholder="My API Key" required=true />
+                        <form class="bg-white p-6 rounded-lg mb-6 shadow-md" onsubmit={on_submit}>
+                            <div class="mb-4">
+                                <label class="block mb-2 font-medium text-gray-700">{ "Key Name:" }</label>
+                                <input
+                                    type="text"
+                                    ref={name_ref.clone()}
+                                    placeholder="My API Key"
+                                    required=true
+                                    class="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:border-primary"
+                                />
                             </div>
-                            <div class="form-group">
-                                <label>{ "Platform:" }</label>
-                                <select ref={platform_ref.clone()} required=true>
+                            <div class="mb-4">
+                                <label class="block mb-2 font-medium text-gray-700">{ "Platform:" }</label>
+                                <select
+                                    ref={platform_ref.clone()}
+                                    required=true
+                                    class="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:border-primary"
+                                >
                                     <option value="" disabled=true selected=true>{ "Select a platform" }</option>
                                     {
                                         platforms.iter().map(|platform| {
@@ -218,7 +236,12 @@ pub fn api_keys() -> Html {
                                     }
                                 </select>
                             </div>
-                            <button type="submit" class="btn-primary">{ "Generate" }</button>
+                            <button
+                                type="submit"
+                                class="bg-primary text-white px-4 py-2 border-none rounded cursor-pointer text-sm transition hover:bg-primary-dark"
+                            >
+                                { "Generate" }
+                            </button>
                         </form>
                     }
                 } else {
@@ -228,12 +251,12 @@ pub fn api_keys() -> Html {
 
             {
                 if *loading {
-                    html! { <div class="loading">{ "Loading API keys..." }</div> }
+                    html! { <div class="text-center p-12 text-gray-600">{ "Loading API keys..." }</div> }
                 } else if keys.is_empty() {
-                    html! { <div class="empty">{ "No API keys generated yet" }</div> }
+                    html! { <div class="text-center p-12 text-gray-600">{ "No API keys generated yet" }</div> }
                 } else {
                     html! {
-                        <div class="keys-list">
+                        <div class="grid gap-4">
                             {
                                 keys.iter().map(|key| {
                                     let on_delete_click = on_delete(key.id);
@@ -243,23 +266,34 @@ pub fn api_keys() -> Html {
                                         .unwrap_or_else(|| "Unknown".to_string());
 
                                     html! {
-                                        <div class="key-item">
-                                            <div class="key-info">
-                                                <h3>{ &key.name }</h3>
-                                                <div class="key-details">
-                                                    <div><strong>{ "Platform:" }</strong> { platform_name }</div>
-                                                    <div><strong>{ "Prefix:" }</strong> <code>{ &key.key_prefix }{ "..." }</code></div>
-                                                    <div><strong>{ "Created:" }</strong> { &key.created_at }</div>
+                                        <div class="bg-white p-6 rounded-lg shadow-md flex justify-between items-center">
+                                            <div class="flex-1">
+                                                <h3 class="text-dark mb-2">{ &key.name }</h3>
+                                                <div class="text-gray-600 text-sm">
+                                                    <div class="my-1"><strong>{ "Platform:" }</strong> { " " }{ platform_name }</div>
+                                                    <div class="my-1">
+                                                        <strong>{ "Prefix:" }</strong>
+                                                        { " " }
+                                                        <code class="bg-gray-100 px-2 py-1 rounded font-mono">
+                                                            { &key.key_prefix }{ "..." }
+                                                        </code>
+                                                    </div>
+                                                    <div class="my-1"><strong>{ "Created:" }</strong> { " " }{ &key.created_at }</div>
                                                     {
                                                         if let Some(last_used) = &key.last_used_at {
-                                                            html! { <div><strong>{ "Last Used:" }</strong> { last_used }</div> }
+                                                            html! { <div class="my-1"><strong>{ "Last Used:" }</strong> { " " }{ last_used }</div> }
                                                         } else {
-                                                            html! { <div><strong>{ "Last Used:" }</strong> { "Never" }</div> }
+                                                            html! { <div class="my-1"><strong>{ "Last Used:" }</strong> { " Never" }</div> }
                                                         }
                                                     }
                                                 </div>
                                             </div>
-                                            <button class="btn-danger" onclick={on_delete_click}>{ "Revoke" }</button>
+                                            <button
+                                                class="bg-danger text-white px-4 py-2 border-none rounded cursor-pointer text-sm transition hover:bg-danger-dark"
+                                                onclick={on_delete_click}
+                                            >
+                                                { "Revoke" }
+                                            </button>
                                         </div>
                                     }
                                 }).collect::<Html>()

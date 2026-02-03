@@ -6,7 +6,14 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use axum_login::AuthManagerLayerBuilder;
-use backend::{AppState, auth::{self, Backend}, db, embedded::Assets, handlers, proxy, repository::Repository};
+use backend::{
+    AppState,
+    auth::{self, Backend},
+    db,
+    embedded::Assets,
+    handlers, proxy,
+    repository::Repository,
+};
 use std::env;
 use time::Duration;
 use tower_http::trace::TraceLayer;

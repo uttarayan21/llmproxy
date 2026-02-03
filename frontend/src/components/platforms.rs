@@ -209,10 +209,13 @@ pub fn platforms() -> Html {
     };
 
     html! {
-        <div class="platforms">
-            <div class="header-row">
-                <h2>{ "LLM Platforms" }</h2>
-                <button class="btn-primary" onclick={on_toggle_form}>
+        <div>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl text-dark">{ "LLM Platforms" }</h2>
+                <button
+                    class="bg-primary text-white px-4 py-2 border-none rounded cursor-pointer text-sm transition hover:bg-primary-dark"
+                    onclick={on_toggle_form}
+                >
                     { if *show_form { "Cancel" } else { "Add Platform" } }
                 </button>
             </div>
@@ -221,29 +224,50 @@ pub fn platforms() -> Html {
                 if *show_form {
                     let is_editing = editing_id.is_some();
                     html! {
-                        <form class="platform-form" onsubmit={on_submit}>
-                            <div class="form-group">
-                                <label>{ "Name:" }</label>
-                                <input type="text" ref={name_ref.clone()} required=true />
+                        <form class="bg-white p-6 rounded-lg mb-6 shadow-md" onsubmit={on_submit}>
+                            <div class="mb-4">
+                                <label class="block mb-2 font-medium text-gray-700">{ "Name:" }</label>
+                                <input
+                                    type="text"
+                                    ref={name_ref.clone()}
+                                    required=true
+                                    class="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:border-primary"
+                                />
                             </div>
-                            <div class="form-group">
-                                <label>{ "Base URL:" }</label>
-                                <input type="text" ref={base_url_ref.clone()} placeholder="https://api.openai.com/v1" required=true />
+                            <div class="mb-4">
+                                <label class="block mb-2 font-medium text-gray-700">{ "Base URL:" }</label>
+                                <input
+                                    type="text"
+                                    ref={base_url_ref.clone()}
+                                    placeholder="https://api.openai.com/v1"
+                                    required=true
+                                    class="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:border-primary"
+                                />
                             </div>
-                            <div class="form-group">
-                                <label>{ "API Key:" }</label>
+                            <div class="mb-4">
+                                <label class="block mb-2 font-medium text-gray-700">{ "API Key:" }</label>
                                 <input
                                     type="password"
                                     ref={api_key_ref.clone()}
                                     placeholder={if is_editing { "Leave empty to keep current key" } else { "" }}
                                     required={!is_editing}
+                                    class="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:border-primary"
                                 />
                             </div>
-                            <div class="form-group">
-                                <label>{ "Platform Type:" }</label>
-                                <input type="text" ref={platform_type_ref.clone()} placeholder="openai, ollama, custom" required=true />
+                            <div class="mb-4">
+                                <label class="block mb-2 font-medium text-gray-700">{ "Platform Type:" }</label>
+                                <input
+                                    type="text"
+                                    ref={platform_type_ref.clone()}
+                                    placeholder="openai, ollama, custom"
+                                    required=true
+                                    class="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:border-primary"
+                                />
                             </div>
-                            <button type="submit" class="btn-primary">
+                            <button
+                                type="submit"
+                                class="bg-primary text-white px-4 py-2 border-none rounded cursor-pointer text-sm transition hover:bg-primary-dark"
+                            >
                                 { if editing_id.is_some() { "Update" } else { "Create" } }
                             </button>
                         </form>
@@ -255,29 +279,39 @@ pub fn platforms() -> Html {
 
             {
                 if *loading {
-                    html! { <div class="loading">{ "Loading platforms..." }</div> }
+                    html! { <div class="text-center p-12 text-gray-600">{ "Loading platforms..." }</div> }
                 } else if platforms.is_empty() {
-                    html! { <div class="empty">{ "No platforms configured yet" }</div> }
+                    html! { <div class="text-center p-12 text-gray-600">{ "No platforms configured yet" }</div> }
                 } else {
                     html! {
-                        <div class="platforms-list">
+                        <div class="grid gap-4">
                             {
                                 platforms.iter().map(|platform| {
                                     let on_delete_click = on_delete(platform.id);
                                     let on_edit_click = on_edit(platform.clone());
                                     html! {
-                                        <div class="platform-item">
-                                            <div class="platform-info">
-                                                <h3>{ &platform.name }</h3>
-                                                <div class="platform-details">
-                                                    <div><strong>{ "URL:" }</strong> { &platform.base_url }</div>
-                                                    <div><strong>{ "Type:" }</strong> { &platform.platform_type }</div>
-                                                    <div><strong>{ "Created:" }</strong> { &platform.created_at }</div>
+                                        <div class="bg-white p-6 rounded-lg shadow-md flex justify-between items-center">
+                                            <div class="flex-1">
+                                                <h3 class="text-dark mb-2">{ &platform.name }</h3>
+                                                <div class="text-gray-600 text-sm">
+                                                    <div class="my-1"><strong>{ "URL:" }</strong> { " " }{ &platform.base_url }</div>
+                                                    <div class="my-1"><strong>{ "Type:" }</strong> { " " }{ &platform.platform_type }</div>
+                                                    <div class="my-1"><strong>{ "Created:" }</strong> { " " }{ &platform.created_at }</div>
                                                 </div>
                                             </div>
-                                            <div class="platform-actions">
-                                                <button class="btn-secondary" onclick={on_edit_click}>{ "Edit" }</button>
-                                                <button class="btn-danger" onclick={on_delete_click}>{ "Delete" }</button>
+                                            <div class="flex gap-2">
+                                                <button
+                                                    class="bg-gray-500 text-white px-4 py-2 border-none rounded cursor-pointer text-sm transition hover:bg-gray-600"
+                                                    onclick={on_edit_click}
+                                                >
+                                                    { "Edit" }
+                                                </button>
+                                                <button
+                                                    class="bg-danger text-white px-4 py-2 border-none rounded cursor-pointer text-sm transition hover:bg-danger-dark"
+                                                    onclick={on_delete_click}
+                                                >
+                                                    { "Delete" }
+                                                </button>
                                             </div>
                                         </div>
                                     }

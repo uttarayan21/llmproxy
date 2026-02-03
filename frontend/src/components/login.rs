@@ -87,14 +87,22 @@ pub fn login(props: &LoginProps) -> Html {
                                 }
                             } else {
                                 let status = response.status();
-                                let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-                                
+                                let error_text = response
+                                    .text()
+                                    .await
+                                    .unwrap_or_else(|_| "Unknown error".to_string());
+
                                 // Try to parse error JSON
-                                if let Ok(error_json) = serde_json::from_str::<serde_json::Value>(&error_text) {
-                                    if let Some(message) = error_json.get("message").and_then(|m| m.as_str()) {
+                                if let Ok(error_json) =
+                                    serde_json::from_str::<serde_json::Value>(&error_text)
+                                {
+                                    if let Some(message) =
+                                        error_json.get("message").and_then(|m| m.as_str())
+                                    {
                                         error.set(Some(format!("Error {}: {}", status, message)));
                                     } else {
-                                        error.set(Some(format!("Error {}: {}", status, error_text)));
+                                        error
+                                            .set(Some(format!("Error {}: {}", status, error_text)));
                                     }
                                 } else {
                                     error.set(Some(format!("Error {}: {}", status, error_text)));
@@ -120,14 +128,16 @@ pub fn login(props: &LoginProps) -> Html {
     };
 
     html! {
-        <div class="login-container">
-            <div class="login-box">
-                <h1>{ "LLMPROXY" }</h1>
-                <h2>{ if *is_register_mode { "Create Account" } else { "Login" } }</h2>
-                
-                <form onsubmit={on_submit}>
-                    <div class="form-group">
-                        <label for="username">{ "Username" }</label>
+        <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#667eea] to-[#764ba2] p-4">
+            <div class="bg-white p-10 rounded-xl shadow-2xl w-full max-w-md">
+                <h1 class="text-dark text-center mb-2 text-3xl">{ "LLMPROXY" }</h1>
+                <h2 class="text-gray-600 text-center mb-8 text-xl font-normal">
+                    { if *is_register_mode { "Create Account" } else { "Login" } }
+                </h2>
+
+                <form onsubmit={on_submit} class="p-0 shadow-none mb-4">
+                    <div class="mb-6">
+                        <label for="username" class="block mb-2 font-semibold text-dark">{ "Username" }</label>
                         <input
                             ref={username_ref}
                             type="text"
@@ -136,11 +146,12 @@ pub fn login(props: &LoginProps) -> Html {
                             placeholder="Enter username"
                             disabled={*loading}
                             required={true}
+                            class="w-full px-3 py-3 text-base border-2 border-gray-200 rounded focus:outline-none focus:border-[#667eea] focus:shadow-[0_0_0_3px_rgba(102,126,234,0.1)]"
                         />
                     </div>
 
-                    <div class="form-group">
-                        <label for="password">{ "Password" }</label>
+                    <div class="mb-6">
+                        <label for="password" class="block mb-2 font-semibold text-dark">{ "Password" }</label>
                         <input
                             ref={password_ref}
                             type="password"
@@ -149,18 +160,27 @@ pub fn login(props: &LoginProps) -> Html {
                             placeholder="Enter password"
                             disabled={*loading}
                             required={true}
+                            class="w-full px-3 py-3 text-base border-2 border-gray-200 rounded focus:outline-none focus:border-[#667eea] focus:shadow-[0_0_0_3px_rgba(102,126,234,0.1)]"
                         />
                     </div>
 
                     {
                         if let Some(err) = (*error).as_ref() {
-                            html! { <div class="error-message">{ err }</div> }
+                            html! {
+                                <div class="bg-red-50 text-red-700 px-3 py-3 rounded-md mb-4 text-sm border border-red-200">
+                                    { err }
+                                </div>
+                            }
                         } else {
                             html! {}
                         }
                     }
 
-                    <button type="submit" disabled={*loading}>
+                    <button
+                        type="submit"
+                        disabled={*loading}
+                        class="w-full px-3 py-3 bg-gradient-to-br from-[#667eea] to-[#764ba2] text-white text-base font-semibold border-none rounded-md cursor-pointer transition-all hover:translate-y-[-2px] hover:shadow-[0_5px_15px_rgba(102,126,234,0.4)] disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+                    >
                         { if *loading && *is_register_mode {
                             "Creating account..."
                         } else if *loading {
@@ -173,8 +193,12 @@ pub fn login(props: &LoginProps) -> Html {
                     </button>
                 </form>
 
-                <div class="toggle-mode">
-                    <button type="button" onclick={toggle_mode} class="link-button">
+                <div class="text-center mt-6">
+                    <button
+                        type="button"
+                        onclick={toggle_mode}
+                        class="bg-none border-none text-[#667eea] cursor-pointer text-sm px-2 py-2 underline hover:text-[#764ba2]"
+                    >
                         { if *is_register_mode {
                             "Already have an account? Login"
                         } else {

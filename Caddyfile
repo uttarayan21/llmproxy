@@ -14,14 +14,11 @@
 :8081 {
 	# Set Remote-User header for all requests
 	# Change "dev-user" to your desired username
-	header {
-		Remote-User "dev-user"
-	}
 	
 	# Proxy all requests to backend (which now serves the frontend too)
 	reverse_proxy localhost:8080 {
 		# Forward Remote-User header
-		header_up Remote-User {header.Remote-User}
+		header_up Remote-User "dev-user"
 		
 		# Increase timeouts for LLM requests
 		transport http {

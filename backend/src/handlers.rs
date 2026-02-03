@@ -1,4 +1,9 @@
-use crate::{AppState, api_key, auth::{AuthUser, Backend, Credentials, hash_password}, error::AppError, models::*};
+use crate::{
+    AppState, api_key,
+    auth::{AuthUser, Backend, Credentials, hash_password},
+    error::AppError,
+    models::*,
+};
 use axum::{
     extract::{Extension, Path, Query, State},
     http::StatusCode,
@@ -67,9 +72,7 @@ pub async fn login(
                 &format!("Authentication error: {}", e),
             )
         })?
-        .ok_or_else(|| {
-            AppError::unauthorized("handlers::login", "Invalid username or password")
-        })?;
+        .ok_or_else(|| AppError::unauthorized("handlers::login", "Invalid username or password"))?;
 
     auth_session.login(&user).await.map_err(|e| {
         AppError::internal_server_error(
@@ -97,7 +100,6 @@ pub async fn get_current_user(
 ) -> Result<Json<User>, AppError> {
     Ok(Json(auth_user.user))
 }
-
 
 // LLM Platform handlers
 pub async fn create_llm_platform(

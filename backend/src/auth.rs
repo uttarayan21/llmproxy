@@ -6,7 +6,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use axum_login::{AuthnBackend, AuthSession, UserId};
+use axum_login::{AuthSession, AuthnBackend, UserId};
 use password_auth::{generate_hash, verify_password};
 use sqlx::SqlitePool;
 
@@ -89,7 +89,7 @@ pub async fn auth_middleware(
     next: Next,
 ) -> Result<Response, AppError> {
     tracing::debug!("auth_middleware: Starting authentication check");
-    
+
     let mut authenticated_user: Option<User> = None;
 
     // First, try to get user from axum_login session
@@ -131,7 +131,10 @@ pub async fn auth_middleware(
                     )
                 })?;
 
-            tracing::debug!("auth_middleware: Authenticated via Remote-User: {}", username);
+            tracing::debug!(
+                "auth_middleware: Authenticated via Remote-User: {}",
+                username
+            );
             authenticated_user = Some(user);
         } else {
             tracing::debug!("auth_middleware: No Remote-User header found");
@@ -140,7 +143,10 @@ pub async fn auth_middleware(
 
     // If we have an authenticated user, insert AuthUser extension and continue
     if let Some(user) = authenticated_user {
-        tracing::debug!("auth_middleware: Authentication successful for user: {}", user.username);
+        tracing::debug!(
+            "auth_middleware: Authentication successful for user: {}",
+            user.username
+        );
         req.extensions_mut().insert(AuthUser { user });
         return Ok(next.run(req).await);
     }
