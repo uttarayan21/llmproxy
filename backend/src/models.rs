@@ -5,8 +5,25 @@ use sqlx::FromRow;
 pub struct User {
     pub id: i64,
     pub username: String,
+    #[serde(skip_serializing)]
+    pub password_hash: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl axum_login::AuthUser for User {
+    type Id = i64;
+
+    fn id(&self) -> Self::Id {
+        self.id
+    }
+
+    fn session_auth_hash(&self) -> &[u8] {
+        self.password_hash
+            .as_ref()
+            .map(|s| s.as_bytes())
+            .unwrap_or(b"")
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -105,4 +122,16 @@ pub struct CreateRequestLogRequest {
     pub response_body: Option<String>,
     pub duration_ms: Option<i64>,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterRequest {
+    pub username: String,
+    pub password: String,
 }

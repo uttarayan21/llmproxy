@@ -25,3 +25,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.11", features = ["v4", "serde"] }
 sha2 = "0.10"
 hex = "0.4"
+axum-login = "0.16"
+tower-sessions = "0.13"
+tower-sessions-sqlx-store = { version = "0.14", features = ["sqlite"] }
+password-auth = "1.0"

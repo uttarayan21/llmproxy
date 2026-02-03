@@ -6,7 +6,7 @@ default:
     @just --list
 
 # Environment variables for development
-export DEV_DEFAULT_USER := "dev-user"
+# export DEV_DEFAULT_USER := "dev-user"
 export DATABASE_URL := "sqlite:llmproxy.db"
 export HOST := "127.0.0.1"
 export PORT := "8080"

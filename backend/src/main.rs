@@ -5,9 +5,13 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{delete, get, post, put},
 };
-use backend::{AppState, auth, db, embedded::Assets, handlers, proxy, repository::Repository};
+use axum_login::AuthManagerLayerBuilder;
+use backend::{AppState, auth::{self, Backend}, db, embedded::Assets, handlers, proxy, repository::Repository};
 use std::env;
+use time::Duration;
 use tower_http::trace::TraceLayer;
+use tower_sessions::{Expiry, SessionManagerLayer};
+use tower_sessions_sqlx_store::SqliteStore;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -31,8 +35,25 @@ async fn main() -> anyhow::Result<()> {
     let pool = db::create_pool(&database_url).await?;
     db::run_migrations(&pool).await?;
 
-    let repository = Repository::new(pool);
+    let repository = Repository::new(pool.clone());
     let app_state = AppState { repository };
+
+    // Setup session store
+    let session_store = SqliteStore::new(pool.clone());
+    session_store.migrate().await?;
+
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_expiry(Expiry::OnInactivity(Duration::days(7)));
+
+    // Setup auth backend
+    let backend = Backend::new(pool.clone());
+    let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
+
+    // Public auth routes (no authentication required)
+    let auth_routes = Router::new()
+        .route("/api/auth/register", post(handlers::register))
+        .route("/api/auth/login", post(handlers::login))
+        .route("/api/auth/logout", post(handlers::logout));
 
     // Build API routes (protected by auth middleware)
     let api_routes = Router::new()
@@ -64,9 +85,11 @@ async fn main() -> anyhow::Result<()> {
     // Build application
     tracing::info!("Serving frontend from embedded assets");
     let app = Router::new()
+        .merge(auth_routes)
         .merge(api_routes)
         .merge(proxy_routes)
         .fallback(serve_embedded_assets)
+        .layer(auth_layer)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
 

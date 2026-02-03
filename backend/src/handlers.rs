@@ -1,10 +1,103 @@
-use crate::{AppState, api_key, auth::AuthUser, error::AppError, models::*};
+use crate::{AppState, api_key, auth::{AuthUser, Backend, Credentials, hash_password}, error::AppError, models::*};
 use axum::{
     extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::Json,
 };
+use axum_login::AuthSession;
 use serde::Deserialize;
+
+// Authentication handlers
+pub async fn register(
+    State(state): State<AppState>,
+    Json(req): Json<RegisterRequest>,
+) -> Result<Json<User>, AppError> {
+    // Check if username already exists
+    let existing = state
+        .repository
+        .get_user_by_username(&req.username)
+        .await
+        .map_err(|e| {
+            AppError::internal_server_error(
+                "handlers::register",
+                &format!("Failed to check existing user: {}", e),
+            )
+        })?;
+
+    if existing.is_some() {
+        return Err(AppError::bad_request(
+            "handlers::register",
+            "Username already exists",
+        ));
+    }
+
+    // Hash password
+    let password_hash = hash_password(&req.password)?;
+
+    // Create user
+    let user = state
+        .repository
+        .create_user(&req.username, &password_hash)
+        .await
+        .map_err(|e| {
+            AppError::internal_server_error(
+                "handlers::register",
+                &format!("Failed to create user: {}", e),
+            )
+        })?;
+
+    Ok(Json(user))
+}
+
+pub async fn login(
+    mut auth_session: AuthSession<Backend>,
+    Json(req): Json<LoginRequest>,
+) -> Result<Json<User>, AppError> {
+    let creds = Credentials {
+        username: req.username,
+        password: req.password,
+    };
+
+    let user = auth_session
+        .authenticate(creds.clone())
+        .await
+        .map_err(|e| {
+            AppError::internal_server_error(
+                "handlers::login",
+                &format!("Authentication error: {}", e),
+            )
+        })?
+        .ok_or_else(|| {
+            AppError::unauthorized("handlers::login", "Invalid username or password")
+        })?;
+
+    auth_session.login(&user).await.map_err(|e| {
+        AppError::internal_server_error(
+            "handlers::login",
+            &format!("Failed to create session: {}", e),
+        )
+    })?;
+
+    Ok(Json(user))
+}
+
+pub async fn logout(mut auth_session: AuthSession<Backend>) -> Result<StatusCode, AppError> {
+    auth_session.logout().await.map_err(|e| {
+        AppError::internal_server_error(
+            "handlers::logout",
+            &format!("Failed to destroy session: {}", e),
+        )
+    })?;
+
+    Ok(StatusCode::OK)
+}
+
+pub async fn get_current_user(
+    Extension(auth_user): Extension<AuthUser>,
+) -> Result<Json<User>, AppError> {
+    Ok(Json(auth_user.user))
+}
+
 
 // LLM Platform handlers
 pub async fn create_llm_platform(
@@ -238,9 +331,4 @@ pub async fn get_request_log(
         .ok_or_else(|| AppError::not_found("handlers::get_request_log", "Request log"))?;
 
     Ok(Json(log))
-}
-
-// User handler
-pub async fn get_current_user(Extension(auth_user): Extension<AuthUser>) -> Json<User> {
-    Json(auth_user.user)
 }

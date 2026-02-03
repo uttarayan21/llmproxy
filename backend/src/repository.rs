@@ -2,7 +2,7 @@ use crate::models::*;
 use anyhow::Result;
 use sqlx::SqlitePool;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Repository {
     pool: SqlitePool,
 }
@@ -16,7 +16,7 @@ impl Repository {
     pub async fn get_or_create_user(&self, username: &str) -> Result<User> {
         // Try to get existing user
         let user = sqlx::query_as::<_, User>(
-            "SELECT id, username, created_at, updated_at FROM users WHERE username = ?",
+            "SELECT id, username, password_hash, created_at, updated_at FROM users WHERE username = ?",
         )
         .bind(username)
         .fetch_optional(&self.pool)
@@ -26,14 +26,53 @@ impl Repository {
             return Ok(user);
         }
 
-        // Create new user
+        // Create new user (without password for Remote-User auth)
         let result = sqlx::query("INSERT INTO users (username) VALUES (?)")
             .bind(username)
             .execute(&self.pool)
             .await?;
 
         let user = sqlx::query_as::<_, User>(
-            "SELECT id, username, created_at, updated_at FROM users WHERE id = ?",
+            "SELECT id, username, password_hash, created_at, updated_at FROM users WHERE id = ?",
+        )
+        .bind(result.last_insert_rowid())
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(user)
+    }
+
+    pub async fn get_user_by_username(&self, username: &str) -> Result<Option<User>> {
+        let user = sqlx::query_as::<_, User>(
+            "SELECT id, username, password_hash, created_at, updated_at FROM users WHERE username = ?",
+        )
+        .bind(username)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user)
+    }
+
+    pub async fn get_user_by_id(&self, user_id: i64) -> Result<Option<User>> {
+        let user = sqlx::query_as::<_, User>(
+            "SELECT id, username, password_hash, created_at, updated_at FROM users WHERE id = ?",
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user)
+    }
+
+    pub async fn create_user(&self, username: &str, password_hash: &str) -> Result<User> {
+        let result = sqlx::query("INSERT INTO users (username, password_hash) VALUES (?, ?)")
+            .bind(username)
+            .bind(password_hash)
+            .execute(&self.pool)
+            .await?;
+
+        let user = sqlx::query_as::<_, User>(
+            "SELECT id, username, password_hash, created_at, updated_at FROM users WHERE id = ?",
         )
         .bind(result.last_insert_rowid())
         .fetch_one(&self.pool)
