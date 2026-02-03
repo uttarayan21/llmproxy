@@ -266,6 +266,8 @@ frontend/src/
 - API keys format: `llmp_` + 32-char UUID (without hyphens)
 - Proxy endpoint: `/proxy/*path` (platform determined by API key)
 - Auth: UI uses `Remote-User` header, proxy uses `Authorization: Bearer` tokens
+- The backend binary is located in `$CARGO_TARGET_DIR` not the usual `target` folder
+- Always update the openapi.json file whenever you modify or update any of the routes.
 - **Streaming**: Proxy automatically detects and forwards streaming responses (SSE) from LLM platforms
   - Detection: Checks `Content-Type` header for `text/event-stream` or `stream`
   - Implementation: Uses `reqwest::bytes_stream()` and Axum `Body::from_stream()`

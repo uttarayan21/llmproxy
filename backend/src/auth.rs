@@ -88,19 +88,28 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    tracing::debug!("auth_middleware: Starting authentication check");
+    
     let mut authenticated_user: Option<User> = None;
 
     // First, try to get user from axum_login session
     // The AuthSession is stored in extensions by the auth_layer
     if let Some(session) = req.extensions().get::<AuthSession<Backend>>() {
+        tracing::debug!("auth_middleware: Found AuthSession in extensions");
         if let Some(user) = &session.user {
+            tracing::debug!("auth_middleware: Session has user: {}", user.username);
             authenticated_user = Some(user.clone());
+        } else {
+            tracing::debug!("auth_middleware: Session exists but no user logged in");
         }
+    } else {
+        tracing::debug!("auth_middleware: No AuthSession found in extensions");
     }
 
     // If not authenticated via session, try Remote-User header (for reverse proxy)
     if authenticated_user.is_none() {
         if let Some(header_value) = headers.get(REMOTE_USER_HEADER) {
+            tracing::debug!("auth_middleware: Found Remote-User header");
             let username = header_value
                 .to_str()
                 .map_err(|e| {
@@ -122,17 +131,22 @@ pub async fn auth_middleware(
                     )
                 })?;
 
+            tracing::debug!("auth_middleware: Authenticated via Remote-User: {}", username);
             authenticated_user = Some(user);
+        } else {
+            tracing::debug!("auth_middleware: No Remote-User header found");
         }
     }
 
     // If we have an authenticated user, insert AuthUser extension and continue
     if let Some(user) = authenticated_user {
+        tracing::debug!("auth_middleware: Authentication successful for user: {}", user.username);
         req.extensions_mut().insert(AuthUser { user });
         return Ok(next.run(req).await);
     }
 
     // No authentication method succeeded
+    tracing::debug!("auth_middleware: No authentication method succeeded, returning 401");
     Err(AppError::unauthorized(
         "auth::auth_middleware",
         "Authentication required. Please login or provide Remote-User header.",
