@@ -6,7 +6,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use axum_login::{AuthnBackend, UserId};
+use axum_login::{AuthnBackend, AuthSession, UserId};
 use password_auth::{generate_hash, verify_password};
 use sqlx::SqlitePool;
 
@@ -59,12 +59,12 @@ impl AuthnBackend for Backend {
             })?;
 
         // Check if user exists and has a password
-        if let Some(user) = user {
-            if let Some(ref password_hash) = user.password_hash {
-                // Verify password
-                if verify_password(creds.password, password_hash).is_ok() {
-                    return Ok(Some(user));
-                }
+        if let Some(user) = user
+            && let Some(ref password_hash) = user.password_hash
+        {
+            // Verify password
+            if verify_password(creds.password, password_hash).is_ok() {
+                return Ok(Some(user));
             }
         }
 
@@ -88,56 +88,55 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    // Check if user is already authenticated via session (axum_login)
-    if let Some(auth_session) = req.extensions().get::<axum_login::AuthSession<Backend>>() {
-        if let Some(user) = auth_session.user.clone() {
-            req.extensions_mut().insert(AuthUser { user });
-            return Ok(next.run(req).await);
+    let mut authenticated_user: Option<User> = None;
+
+    // First, try to get user from axum_login session
+    // The AuthSession is stored in extensions by the auth_layer
+    if let Some(session) = req.extensions().get::<AuthSession<Backend>>() {
+        if let Some(user) = &session.user {
+            authenticated_user = Some(user.clone());
         }
     }
 
-    // Fall back to Remote-User header (for reverse proxy auth)
-    if let Some(header_value) = headers.get(REMOTE_USER_HEADER) {
-        let username = header_value
-            .to_str()
-            .map_err(|e| {
-                AppError::bad_request(
-                    "auth::auth_middleware",
-                    &format!("Invalid Remote-User header: {}", e),
-                )
-            })?
-            .to_string();
+    // If not authenticated via session, try Remote-User header (for reverse proxy)
+    if authenticated_user.is_none() {
+        if let Some(header_value) = headers.get(REMOTE_USER_HEADER) {
+            let username = header_value
+                .to_str()
+                .map_err(|e| {
+                    AppError::bad_request(
+                        "auth::auth_middleware",
+                        &format!("Invalid Remote-User header: {}", e),
+                    )
+                })?
+                .to_string();
 
-        let user = state
-            .repository
-            .get_or_create_user(&username)
-            .await
-            .map_err(|e| {
-                AppError::internal_server_error(
-                    "auth::auth_middleware",
-                    &format!("Failed to get or create user: {}", e),
-                )
-            })?;
+            let user = state
+                .repository
+                .get_or_create_user(&username)
+                .await
+                .map_err(|e| {
+                    AppError::internal_server_error(
+                        "auth::auth_middleware",
+                        &format!("Failed to get or create user: {}", e),
+                    )
+                })?;
 
+            authenticated_user = Some(user);
+        }
+    }
+
+    // If we have an authenticated user, insert AuthUser extension and continue
+    if let Some(user) = authenticated_user {
         req.extensions_mut().insert(AuthUser { user });
         return Ok(next.run(req).await);
     }
 
-    // For development: use environment variable or default
-    // let dev_user = std::env::var("DEV_DEFAULT_USER").unwrap_or_else(|_| "dev-user".to_string());
-    // let user = state
-    //     .repository
-    //     .get_or_create_user(&dev_user)
-    //     .await
-    //     .map_err(|e| {
-    //         AppError::internal_server_error(
-    //             "auth::auth_middleware",
-    //             &format!("Failed to get or create user: {}", e),
-    //         )
-    //     })?;
-    //
-    // req.extensions_mut().insert(AuthUser { user });
-    Ok(next.run(req).await)
+    // No authentication method succeeded
+    Err(AppError::unauthorized(
+        "auth::auth_middleware",
+        "Authentication required. Please login or provide Remote-User header.",
+    ))
 }
 
 // Password hashing utility

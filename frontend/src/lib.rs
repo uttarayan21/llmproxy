@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 use yew::prelude::*;
 
 mod components;
-use components::{api_keys::ApiKeys, platforms::Platforms, request_logs::RequestLogs};
+use components::{api_keys::ApiKeys, login::Login, platforms::Platforms, request_logs::RequestLogs};
 
 #[derive(Clone, PartialEq)]
 enum Page {
@@ -25,21 +25,71 @@ pub struct User {
 fn app() -> Html {
     let current_page = use_state(|| Page::Logs);
     let user = use_state(|| Option::<User>::None);
+    let is_authenticated = use_state(|| false);
+    let is_checking_auth = use_state(|| true);
 
+    // Check authentication on mount
     {
         let user = user.clone();
+        let is_authenticated = is_authenticated.clone();
+        let is_checking_auth = is_checking_auth.clone();
+
         use_effect_with((), move |_| {
             wasm_bindgen_futures::spawn_local(async move {
                 if let Ok(response) = Request::get("/api/user").send().await
+                    && response.ok()
                     && let Ok(u) = response.json::<User>().await
                 {
                     user.set(Some(u));
+                    is_authenticated.set(true);
                 }
+                is_checking_auth.set(false);
             });
             || ()
         });
     }
 
+    let on_login_success = {
+        let user = user.clone();
+        let is_authenticated = is_authenticated.clone();
+        Callback::from(move |u: User| {
+            user.set(Some(u));
+            is_authenticated.set(true);
+        })
+    };
+
+    let on_logout = {
+        let user = user.clone();
+        let is_authenticated = is_authenticated.clone();
+        Callback::from(move |_| {
+            let user = user.clone();
+            let is_authenticated = is_authenticated.clone();
+            
+            wasm_bindgen_futures::spawn_local(async move {
+                let _ = Request::post("/api/auth/logout").send().await;
+                user.set(None);
+                is_authenticated.set(false);
+            });
+        })
+    };
+
+    // Show loading spinner while checking authentication
+    if *is_checking_auth {
+        return html! {
+            <div class="loading-container">
+                <div class="loading-spinner">{ "Loading..." }</div>
+            </div>
+        };
+    }
+
+    // Show login page if not authenticated
+    if !*is_authenticated {
+        return html! {
+            <Login on_login_success={on_login_success} />
+        };
+    }
+
+    // Show main app if authenticated
     let on_nav = |page: Page| {
         let current_page = current_page.clone();
         Callback::from(move |_| current_page.set(page.clone()))
@@ -49,13 +99,22 @@ fn app() -> Html {
         <div class="app">
             <header class="header">
                 <h1>{ "LLMPROXY" }</h1>
-                {
-                    if let Some(u) = (*user).as_ref() {
-                        html! { <div class="user-info">{ format!("User: {}", u.username) }</div> }
-                    } else {
-                        html! { <div class="user-info">{ "Loading..." }</div> }
+                <div class="header-right">
+                    {
+                        if let Some(u) = (*user).as_ref() {
+                            html! {
+                                <>
+                                    <div class="user-info">{ format!("User: {}", u.username) }</div>
+                                    <button class="logout-button" onclick={on_logout}>
+                                        { "Logout" }
+                                    </button>
+                                </>
+                            }
+                        } else {
+                            html! { <div class="user-info">{ "Loading..." }</div> }
+                        }
                     }
-                }
+                </div>
             </header>
 
             <nav class="nav">
