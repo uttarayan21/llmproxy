@@ -77,11 +77,17 @@ git clone <repository-url>
 cd llmproxy
 ```
 
-2. Set environment variables (optional):
+2. Configure the application (optional):
+
+Create a `config.toml` file (see [Configuration](#configuration) section below) or use environment variables:
+
 ```bash
 export DATABASE_URL=sqlite:llmproxy.db
 export HOST=0.0.0.0
 export PORT=8080
+export AUTH_ENABLE_SESSION=true
+export AUTH_ENABLE_HEADER=true
+export AUTH_HEADER_NAME=Remote-User
 ```
 
 3. Build and run the backend:
@@ -91,6 +97,78 @@ cargo run --release
 ```
 
 The server will start on `http://localhost:8080`
+
+## Configuration
+
+LLMPROXY can be configured using a `config.toml` file or environment variables. Configuration files are loaded from `config.toml` in the current directory, or from a custom path via the `CONFIG_PATH` environment variable.
+
+### Configuration File
+
+Create a `config.toml` file based on `config.example.toml`:
+
+```toml
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+url = "sqlite:llmproxy.db"
+
+[auth]
+# Enable/disable individual authentication methods
+# Multiple methods can be enabled simultaneously
+
+enable_session = true    # Session-based auth (login/register)
+enable_header = true     # Reverse proxy header auth
+header_name = "Remote-User"
+enable_basic = false     # HTTP Basic Authentication
+disable_all = false      # Disable all auth (dangerous!)
+```
+
+### Environment Variables
+
+All configuration options can be overridden with environment variables:
+
+- `CONFIG_PATH` - Path to config file (default: `config.toml`)
+- `HOST` - Server host (default: `0.0.0.0`)
+- `PORT` - Server port (default: `8080`)
+- `DATABASE_URL` - Database connection string (default: `sqlite:llmproxy.db`)
+- `AUTH_ENABLE_SESSION` - Enable session-based authentication (default: `true`)
+- `AUTH_ENABLE_HEADER` - Enable header-based authentication (default: `true`)
+- `AUTH_HEADER_NAME` - Header name for proxy auth (default: `Remote-User`)
+- `AUTH_ENABLE_BASIC` - Enable HTTP Basic Authentication (default: `false`)
+- `AUTH_DISABLE_ALL` - Disable all authentication (default: `false`, **USE WITH CAUTION!**)
+
+### Authentication Methods
+
+LLMPROXY supports multiple authentication methods that can be enabled independently:
+
+1. **Session Authentication** (`enable_session`)
+   - Users can register and login via the web UI
+   - Passwords are hashed using industry-standard password-auth
+   - Sessions persist for 7 days
+
+2. **Header Authentication** (`enable_header`)
+   - Authenticates users via a reverse proxy header (e.g., from Caddy, nginx)
+   - Automatically creates users on first access
+   - Configurable header name (default: `Remote-User`)
+
+3. **HTTP Basic Authentication** (`enable_basic`)
+   - Standard HTTP Basic Authentication
+   - Uses the same user accounts as session auth
+   - Useful for API clients and scripts
+
+4. **Disable All** (`disable_all`)
+   - **WARNING**: Completely disables authentication
+   - All requests are allowed and attributed to an "anonymous" user
+   - Only use in trusted, isolated environments
+
+**Recommended configurations:**
+- **Production with reverse proxy**: `enable_header=true`, others `false`
+- **Development**: `enable_session=true` and `enable_header=true`
+- **Standalone**: `enable_session=true`, others `false`
+- **API-only**: `enable_basic=true`, others `false`
+
 
 ### Building the Frontend
 

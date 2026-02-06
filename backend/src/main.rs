@@ -9,12 +9,12 @@ use axum_login::AuthManagerLayerBuilder;
 use backend::{
     AppState,
     auth::{self, Backend},
+    config::Config,
     db,
     embedded::Assets,
     handlers, proxy,
     repository::Repository,
 };
-use std::env;
 use time::Duration;
 use tower_http::trace::TraceLayer;
 use tower_sessions::{Expiry, SessionManagerLayer};
@@ -32,18 +32,18 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // Get configuration from environment
-    let database_url =
-        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:llmproxy.db".to_string());
-    let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    // Load configuration
+    let config = Config::load()?;
 
     // Setup database
-    let pool = db::create_pool(&database_url).await?;
+    let pool = db::create_pool(&config.database.url).await?;
     db::run_migrations(&pool).await?;
 
     let repository = Repository::new(pool.clone());
-    let app_state = AppState { repository };
+    let app_state = AppState {
+        repository,
+        config: config.clone(),
+    };
 
     // Setup session store
     let session_store = SqliteStore::new(pool.clone());
@@ -101,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state(app_state);
 
     // Start server
-    let addr = format!("{}:{}", host, port);
+    let addr = format!("{}:{}", config.server.host, config.server.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     tracing::info!("Server listening on {}", addr);
 

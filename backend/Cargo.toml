@@ -30,6 +30,8 @@ tower-sessions.workspace = true
 tower-sessions-sqlx-store.workspace = true
 password-auth.workspace = true
 time = "0.3"
+toml = "0.8"
+base64 = "0.22"
 
 [dev-dependencies]
 axum-test = "15.0"

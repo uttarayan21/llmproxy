@@ -11,3 +11,4 @@
 .backend.pid
 *.db
 *.css.backup
+config.toml

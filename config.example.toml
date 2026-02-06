@@ -1,0 +1,20 @@
+# LLMPROXY Configuration Example
+
+# Copy this file to config.toml and adjust as needed
+
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+url = "sqlite:llmproxy.db"
+
+[auth]
+# Enable/disable individual authentication methods
+# Multiple methods can be enabled simultaneously
+
+enable_session = true    # Session-based auth (login/register)
+enable_header = true     # Reverse proxy header auth
+header_name = "Remote-User"
+enable_basic = false     # HTTP Basic Authentication
+disable_all = false      # Disable all auth (dangerous!)
