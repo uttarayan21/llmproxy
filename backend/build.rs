@@ -3,11 +3,17 @@ use std::path::Path;
 use std::process::Command;
 
 fn main() {
-    println!("cargo:rerun-if-changed=../frontend/src");
-    println!("cargo:rerun-if-changed=../frontend/index.html");
-    println!("cargo:rerun-if-changed=../frontend/styles.css");
-    println!("cargo:rerun-if-changed=../frontend/Cargo.toml");
-    println!("cargo:rerun-if-changed=../frontend/Trunk.toml");
+    println!("cargo::rerun-if-changed=../frontend/src");
+    println!("cargo::rerun-if-changed=../frontend/index.html");
+    println!("cargo::rerun-if-changed=../frontend/styles.css");
+    println!("cargo::rerun-if-changed=../frontend/Cargo.toml");
+    println!("cargo::rerun-if-changed=../frontend/Trunk.toml");
+
+    if let Ok(var) = env::var("FRONTEND_ASSETS") {
+        println!("cargo::rustc-env=FRONTEND_ASSETS={var}",);
+    } else {
+        println!("cargo::rustc-env=FRONTEND_ASSETS=../frontend/dist",);
+    }
 
     // Get the workspace root directory
     let workspace_root = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");

@@ -258,7 +258,7 @@ impl Repository {
     }
 
     // Request Log operations
-    pub async fn create_request_log(&self, req: CreateRequestLogRequest) -> Result<RequestLog> {
+    pub async fn create_request_log(&self, req: &CreateRequestLogRequest) -> Result<RequestLog> {
         let result = sqlx::query(
             r#"INSERT INTO request_logs 
             (user_id, proxy_api_key_id, llm_platform_id, method, path, request_headers, request_body, 

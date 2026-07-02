@@ -12,9 +12,18 @@ license = "MIT"
 tokio = { version = "1.41", features = ["full"] }
 axum = { version = "0.7", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+serde_json = { version = "1", features = ["raw_value"] }
+sqlx = { version = "0.8", features = [
+  "runtime-tokio-rustls",
+  "sqlite",
+  "chrono",
+  "uuid",
+] }
+reqwest = { version = "0.12", features = [
+  "json",
+  "rustls-tls",
+  "stream",
+], default-features = false }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors", "fs"] }
 tracing = "0.1"

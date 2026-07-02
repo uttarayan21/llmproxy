@@ -247,3 +247,8 @@ start: build serve-backend serve-caddy
 release: clean build db-backup
     @echo "🎉 Production build complete!"
     @echo "Binary location: backend/target/release/backend"
+
+tt:
+    curl -H 'Authorization: Bearer llmp_f84503aab7c74164b2f63f68e1e0f6ec' localhost:8080/proxy/api/chat \
+        -H 'Content-Type: application/json' \
+        -d '{ "model":"glm-4.7-flash", "messages": [{ "role":"user", "content":"Hello, world!" }] }'

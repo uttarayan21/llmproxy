@@ -7,7 +7,7 @@ use axum::{
 };
 use futures_util::StreamExt;
 use reqwest;
-use std::time::Instant;
+use std::{collections::BTreeMap, time::Instant};
 
 // Context for logging requests
 struct LogContext {
@@ -23,6 +23,30 @@ struct LogContext {
     outgoing_headers: String,
     outgoing_body: Option<String>,
     start: Instant,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct StreamingChunk<'a> {
+    model: &'a str,
+    created_at: &'a str,
+    message: Message<'a>,
+    done: bool,
+    done_reason: Option<&'a str>,
+    total_duration: Option<i64>,
+    load_duration: Option<i64>,
+    prompt_eval_count: Option<i64>,
+    prompt_eval_duration: Option<i64>,
+    eval_count: Option<i64>,
+    eval_duration: Option<i64>,
+    #[serde(flatten)]
+    rest: BTreeMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Message<'a> {
+    role: &'a str,
+    content: String,
+    thinking: Option<String>,
 }
 
 // Handle non-streaming responses
@@ -68,7 +92,7 @@ async fn handle_regular_response(
     };
 
     tokio::spawn(async move {
-        let _ = ctx.state.repository.create_request_log(log_req).await;
+        let _ = ctx.state.repository.create_request_log(&log_req).await;
     });
 
     // Return response
@@ -77,98 +101,147 @@ async fn handle_regular_response(
     Ok((axum_status, response_body).into_response())
 }
 
-// Handle streaming responses (SSE)
 async fn handle_streaming_response(
     resp: reqwest::Response,
     status: reqwest::StatusCode,
     headers: reqwest::header::HeaderMap,
     ctx: LogContext,
 ) -> Result<Response, AppError> {
-    let status_code = status.as_u16() as i32;
+    let status_code = status.as_u16();
+    let response_stream = resp.bytes_stream();
 
-    // Extract response headers
-    let headers_map: std::collections::HashMap<String, String> = headers
-        .iter()
-        .filter_map(|(k, v)| v.to_str().ok().map(|val| (k.to_string(), val.to_string())))
-        .collect();
-    let response_headers_json = serde_json::to_string(&headers_map).unwrap_or_default();
+    let request_headers = serde_json::to_string(&ctx.request_headers_map).unwrap_or_default();
+    let log_req = CreateRequestLogRequest {
+        user_id: ctx.user_id,
+        proxy_api_key_id: ctx.proxy_key_id,
+        llm_platform_id: ctx.platform_id,
+        method: ctx.method.to_string(),
+        path: ctx.path,
+        request_headers,
+        request_body: None,
+        outgoing_url: Some(ctx.target_url),
+        outgoing_headers: Some(ctx.outgoing_headers),
+        outgoing_body: ctx.outgoing_body,
+        response_status: Some(status_code as i32),
+        response_headers: None,
+        response_body: None,
+        duration_ms: None,
+        error: None,
+    };
 
-    // Create a stream that collects chunks for logging
-    let mut stream = resp.bytes_stream();
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<bytes::Bytes, std::io::Error>>(100);
-
-    // Spawn a task to collect chunks and log after completion
-    tokio::spawn(async move {
-        let mut collected_chunks = Vec::new();
-
-        while let Some(chunk_result) = stream.next().await {
-            match chunk_result {
-                Ok(chunk) => {
-                    collected_chunks.push(chunk.clone());
-                    // Send chunk downstream (ignore errors if receiver is dropped)
-                    let _ = tx.send(Ok(chunk)).await;
+    let body =
+        axum::body::Body::from_stream(response_stream.scan(log_req, move |log_req, body| {
+            let repo = ctx.state.repository.clone();
+            let mut log_req = log_req.clone();
+            async move {
+                if let Ok(ref b) = body {
+                    if let Some(chunk) = stream_chunk(b) {
+                        dbg!(chunk);
+                    }
+                    // log_req.response_body = Some(String::from_utf8_lossy(b).to_string());
+                    // repo.create_request_log(&log_req)
+                    //     .await
+                    //     .inspect_err(|e| tracing::error!("Failed to log request: {}", e))
+                    //     .ok();
                 }
-                Err(e) => {
-                    // Send error downstream
-                    let _ = tx.send(Err(std::io::Error::other(e.to_string()))).await;
-                    break;
-                }
+                Some(body)
             }
-        }
-
-        // After stream completes, log the request
-        let duration_ms = ctx.start.elapsed().as_millis() as i64;
-        let response_body = collected_chunks
-            .into_iter()
-            .map(|c| String::from_utf8_lossy(&c).to_string())
-            .collect::<Vec<_>>()
-            .join("");
-
-        let request_headers = serde_json::to_string(&ctx.request_headers_map).unwrap_or_default();
-        let log_req = CreateRequestLogRequest {
-            user_id: ctx.user_id,
-            proxy_api_key_id: ctx.proxy_key_id,
-            llm_platform_id: ctx.platform_id,
-            method: ctx.method.to_string(),
-            path: ctx.path,
-            request_headers,
-            request_body: if ctx.request_body.is_empty() {
-                None
-            } else {
-                Some(ctx.request_body)
-            },
-            outgoing_url: Some(ctx.target_url),
-            outgoing_headers: Some(ctx.outgoing_headers),
-            outgoing_body: ctx.outgoing_body,
-            response_status: Some(status_code),
-            response_headers: Some(response_headers_json),
-            response_body: Some(response_body),
-            duration_ms: Some(duration_ms),
-            error: None,
-        };
-
-        let _ = ctx.state.repository.create_request_log(log_req).await;
-    });
-
-    // Convert the receiver into a stream
-    let body_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
-    let body = Body::from_stream(body_stream);
-
-    // Build response with original headers
+        }));
     let mut response = Response::new(body);
     *response.status_mut() =
-        StatusCode::from_u16(status_code as u16).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-
-    // Forward response headers
-    for (key, value) in headers.iter() {
-        if let Ok(header_name) = axum::http::HeaderName::from_bytes(key.as_str().as_bytes())
-            && let Ok(header_value) = axum::http::HeaderValue::from_bytes(value.as_bytes())
-        {
-            response.headers_mut().insert(header_name, header_value);
-        }
-    }
-
+        StatusCode::from_u16(status_code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    *response.headers_mut() = headers;
     Ok(response)
+
+    // let headers_map: std::collections::HashMap<String, String> = headers
+    //     .iter()
+    //     .filter_map(|(k, v)| v.to_str().ok().map(|val| (k.to_string(), val.to_string())))
+    //     .collect();
+    // let response_headers_json = serde_json::to_string(&headers_map).unwrap_or_default();
+    //
+    // // Create a stream that collects chunks for logging
+    // let mut stream = resp.bytes_stream();
+    // let (tx, rx) = tokio::sync::mpsc::channel::<Result<bytes::Bytes, std::io::Error>>(100);
+    //
+    // // Spawn a task to collect chunks and log after completion
+    // tokio::spawn(async move {
+    //     let mut collected_chunks = Vec::new();
+    //
+    //     while let Some(chunk_result) = stream.next().await {
+    //         match chunk_result {
+    //             Ok(chunk) => {
+    //                 if let Some(json) = serde_json::from_slice::<StreamingChunk>(&chunk).ok() {
+    //                     let out = serde_json::to_string(&json);
+    //                     dbg!(out);
+    //                 } else {
+    //                 }
+    //
+    //                 collected_chunks.push(chunk.clone());
+    //                 // do processing on chunk if needed
+    //
+    //                 // Send chunk downstream (ignore errors if receiver is dropped)
+    //                 let _ = tx.send(Ok(chunk)).await;
+    //             }
+    //             Err(e) => {
+    //                 // Send error downstream
+    //                 let _ = tx.send(Err(std::io::Error::other(e.to_string()))).await;
+    //                 break;
+    //             }
+    //         }
+    //     }
+    //
+    //     // After stream completes, log the request
+    //     let duration_ms = ctx.start.elapsed().as_millis() as i64;
+    //     let response_body = collected_chunks
+    //         .into_iter()
+    //         .map(|c| String::from_utf8_lossy(&c).to_string())
+    //         .collect::<Vec<_>>()
+    //         .join("");
+    //
+    //     let request_headers = serde_json::to_string(&ctx.request_headers_map).unwrap_or_default();
+    //     let log_req = CreateRequestLogRequest {
+    //         user_id: ctx.user_id,
+    //         proxy_api_key_id: ctx.proxy_key_id,
+    //         llm_platform_id: ctx.platform_id,
+    //         method: ctx.method.to_string(),
+    //         path: ctx.path,
+    //         request_headers,
+    //         request_body: if ctx.request_body.is_empty() {
+    //             None
+    //         } else {
+    //             Some(ctx.request_body)
+    //         },
+    //         outgoing_url: Some(ctx.target_url),
+    //         outgoing_headers: Some(ctx.outgoing_headers),
+    //         outgoing_body: ctx.outgoing_body,
+    //         response_status: Some(status_code),
+    //         response_headers: Some(response_headers_json),
+    //         response_body: Some(response_body),
+    //         duration_ms: Some(duration_ms),
+    //         error: None,
+    //     };
+    //
+    //     let _ = ctx.state.repository.create_request_log(log_req).await;
+    // });
+    //
+    // // Convert the receiver into a stream
+    // let body_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+    // let body = Body::from_stream(body_stream);
+    //
+    // // Build response with original headers
+    // let mut response = Response::new(body);
+    // *response.status_mut() =
+    //     StatusCode::from_u16(status_code as u16).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    //
+    // // Forward response headers
+    // for (key, value) in headers.iter() {
+    //     if let Ok(header_name) = axum::http::HeaderName::from_bytes(key.as_str().as_bytes())
+    //         && let Ok(header_value) = axum::http::HeaderValue::from_bytes(value.as_bytes())
+    //     {
+    //         response.headers_mut().insert(header_name, header_value);
+    //     }
+    // }
+    // Ok(response)
 }
 
 pub async fn proxy_handler(
@@ -353,7 +426,7 @@ pub async fn proxy_handler(
             };
 
             tokio::spawn(async move {
-                let _ = state.repository.create_request_log(log_req).await;
+                let _ = state.repository.create_request_log(&log_req).await;
             });
 
             Err(AppError::bad_gateway(
@@ -362,4 +435,40 @@ pub async fn proxy_handler(
             ))
         }
     }
+}
+
+pub enum Decodable {
+    Json,
+    JsonLines,
+    Text,
+    Compressed,
+}
+
+pub fn introspect_headers(headers: &HeaderMap) -> Decodable {
+    let transfer_encoding = headers
+        .get("transfer-encoding")
+        .and_then(|v| v.to_str().ok());
+
+    let content_type = headers.get("content-type").and_then(|v| v.to_str().ok());
+
+    content_type
+        .map(|m| match m {
+            "application/json" => Decodable::Json,
+            "application/jsonlines" | "application/x-ndjson" => Decodable::JsonLines,
+            ct if ct.contains("text/") => Decodable::Text,
+            ct if ct.contains("application/gzip") || ct.contains("application/zstd") => {
+                Decodable::Compressed
+            }
+            _ => Decodable::Text, // Default to text for unknown types
+        })
+        .unwrap_or(Decodable::Text) // Default to text if content-type is missing
+}
+
+pub fn stream_chunk<'a>(bytes: &'a [u8]) -> Option<StreamingChunk<'a>> {
+    serde_json::from_slice(bytes)
+        .inspect_err(|e| {
+            tracing::error!("Failed to parse chunk: {}", e);
+            tracing::info!("Chunk content: {}", String::from_utf8_lossy(bytes));
+        })
+        .ok()?
 }
